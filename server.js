@@ -40,40 +40,99 @@ const express = require('express');
 const mongoose = require('mongoose');
 const axios = require('axios');
 const cors = require('cors');
-const crypto = require('crypto'); // For generating API key
+const crypto = require('crypto'); // For Telegram auth verification
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Get API key from environment or generate one if it doesn't exist
-const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
+// Telegram Bot Token for authentication
+const BOT_TOKEN = process.env.BOT_TOKEN;
 
-// If API key was generated (not from env), log it so we can use it
-if (!process.env.API_KEY) {
-  console.log('Generated API key:', API_KEY);
-  console.log('Add this to your .env file as API_KEY=your-key-here');
-}
-
-// API key authentication middleware
-const authenticateApiKey = (req, res, next) => {
-  const apiKey = req.headers['x-api-key'];
-  
-  // Check if API key is present and valid
-  if (!apiKey || apiKey !== API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid API key' });
+// Telegram WebApp Authentication middleware
+const authenticateTelegramWebApp = (req, res, next) => {
+  try {
+    const initDataStr = req.headers['x-telegram-init-data'];
+    
+    // Skip authentication if in development mode or if configured to do so
+    if (!initDataStr) {
+      if (process.env.NODE_ENV === 'development' || process.env.SKIP_AUTH === 'true') {
+        console.warn('Warning: Bypassing Telegram authentication, proceeding without validation');
+        return next();
+      }
+      return res.status(401).json({ error: 'Unauthorized: Missing Telegram authentication data' });
+    }
+    
+    // If BOT_TOKEN is not configured, skip validation in development
+    if (!BOT_TOKEN) {
+      if (process.env.NODE_ENV === 'development' || process.env.SKIP_AUTH === 'true') {
+        console.warn('Warning: No BOT_TOKEN provided, skipping validation');
+        return next();
+      }
+      return res.status(500).json({ error: 'Server configuration error: Missing BOT_TOKEN' });
+    }
+    
+    // Parse the initData
+    const initData = new URLSearchParams(initDataStr);
+    
+    // Extract the hash for verification
+    const hash = initData.get('hash');
+    if (!hash) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid Telegram data format' });
+    }
+    
+    // Remove the hash from the data to verify
+    initData.delete('hash');
+    
+    // Sort alphabetically as required by Telegram
+    const dataCheckArray = Array.from(initData.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, value]) => `${key}=${value}`);
+    
+    const dataCheckString = dataCheckArray.join('\n');
+    
+    // Create the secret key from bot token
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+    
+    // Calculate the hash
+    const calculatedHash = crypto
+      .createHmac('sha256', secretKey)
+      .update(dataCheckString)
+      .digest('hex');
+    
+    // Verify the hash
+    if (calculatedHash !== hash) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid Telegram data signature' });
+    }
+    
+    // Extract user data for convenience
+    try {
+      const user = JSON.parse(initData.get('user'));
+      req.telegramUser = user;
+    } catch (e) {
+      console.warn('Could not parse user data from Telegram initData');
+    }
+    
+    // Authentication successful
+    next();
+  } catch (error) {
+    // Allow requests to proceed in development mode despite errors
+    if (process.env.NODE_ENV === 'development' || process.env.SKIP_AUTH === 'true') {
+      console.error('Authentication error in development mode:', error);
+      return next();
+    }
+    
+    console.error('Authentication error:', error);
+    return res.status(401).json({ error: 'Unauthorized: Authentication failed' });
   }
-  
-  // API key is valid, proceed to the next middleware
-  next();
 };
 
 // Middleware
 app.use(express.json());
 app.use(cors());
 
-// Apply the authentication middleware to all API routes
-app.use('/api', authenticateApiKey);
+// Apply Telegram authentication middleware to all API routes
+app.use('/api', authenticateTelegramWebApp);
 
 // MongoDB Atlas Connection
 mongoose.connect(process.env.MONGODB_URI, {
@@ -362,13 +421,13 @@ app.post('/api/tracker/add', async (req, res) => {
   }
 });
 
-// Route to verify API key - useful for client testing
+// Route to verify Telegram WebApp authentication - useful for client testing
 app.get('/api/auth/verify', (req, res) => {
-  res.json({ status: 'success', message: 'API key is valid' });
+  res.json({ status: 'success', message: 'Telegram WebApp authentication is valid' });
 });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`API is protected with API key authentication`);
+  console.log(`API is protected with Telegram WebApp authentication`);
 });
