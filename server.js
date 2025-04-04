@@ -10,6 +10,7 @@
  * - GET /api/ratings/user/{userId} - Get user ratings with optional sorting and filtering
  *   Query params:
  *   - minRating: filter by minimum rating (1-10)
+ *   - mediaType: filter by media type (movie, series, episode, game, other)
  *   - sort: rating_desc (default), rating_asc, title_asc, title_desc, year_desc, year_asc
  * 
  * - GET /api/ratings/search/{query} - Search OMDB for media
@@ -21,6 +22,7 @@
  *   - userId: (required) User ID
  *   - minRating: minimum rating (1-10)
  *   - maxRating: maximum rating (1-10)
+ *   - mediaType: filter by media type (movie, series, episode, game, other)
  *   - genre: filter by genre (partial match)
  *   - year: filter by year (exact or range with hyphen e.g. "1990-2000")
  *   - director: filter by director (partial match)
@@ -38,14 +40,40 @@ const express = require('express');
 const mongoose = require('mongoose');
 const axios = require('axios');
 const cors = require('cors');
+const crypto = require('crypto'); // For generating API key
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
+
+// Get API key from environment or generate one if it doesn't exist
+const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
+
+// If API key was generated (not from env), log it so we can use it
+if (!process.env.API_KEY) {
+  console.log('Generated API key:', API_KEY);
+  console.log('Add this to your .env file as API_KEY=your-key-here');
+}
+
+// API key authentication middleware
+const authenticateApiKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  // Check if API key is present and valid
+  if (!apiKey || apiKey !== API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid API key' });
+  }
+  
+  // API key is valid, proceed to the next middleware
+  next();
+};
 
 // Middleware
 app.use(express.json());
 app.use(cors());
+
+// Apply the authentication middleware to all API routes
+app.use('/api', authenticateApiKey);
 
 // MongoDB Atlas Connection
 mongoose.connect(process.env.MONGODB_URI, {
@@ -70,7 +98,7 @@ const RatingSchema = new mongoose.Schema({
     mediaType: { 
       type: String, 
       enum: ['movie', 'series', 'episode', 'game', 'other'],
-      default: ''
+      default: 'movie'
     },
     createdAt: { type: Date, default: Date.now }
   });
@@ -98,6 +126,11 @@ app.get('/api/ratings/user/:userId', async (req, res) => {
     // Apply rating filter if provided
     if (req.query.minRating) {
       query.rating = { $gte: parseInt(req.query.minRating) };
+    }
+    
+    // Apply media type filter if provided
+    if (req.query.mediaType && req.query.mediaType !== 'all') {
+      query.mediaType = req.query.mediaType;
     }
     
     // Create the base query
@@ -160,6 +193,13 @@ app.post('/api/ratings/add/:userId_:imdbId_:rating', async (req, res) => {
     
     const movieData = response.data;
     
+    // Map OMDB Type to our mediaType enum
+    let mediaType = 'other';
+    if (movieData.Type === 'movie') mediaType = 'movie';
+    else if (movieData.Type === 'series') mediaType = 'series';
+    else if (movieData.Type === 'episode') mediaType = 'episode';
+    else if (movieData.Type === 'game') mediaType = 'game';
+    
     // Check if rating already exists
     const existingRating = await Rating.findOne({ userId, imdbId });
     
@@ -179,7 +219,8 @@ app.post('/api/ratings/add/:userId_:imdbId_:rating', async (req, res) => {
         poster: movieData.Poster,
         plot: movieData.Plot,
         genre: movieData.Genre,
-        director: movieData.Director
+        director: movieData.Director,
+        mediaType // Add the media type from OMDB
       });
       
       await newRating.save();
@@ -205,7 +246,7 @@ app.get('/api/tracker/user/:userId', async (req, res) => {
 // 5. Advanced filtering and search for ratings
 app.get('/api/ratings/filter', async (req, res) => {
   try {
-    const { userId, minRating, maxRating, genre, year, director, query, sort } = req.query;
+    const { userId, minRating, maxRating, genre, year, director, query, sort, mediaType } = req.query;
     
     // Build the filter query
     let filterQuery = {};
@@ -221,6 +262,11 @@ app.get('/api/ratings/filter', async (req, res) => {
       filterQuery.rating = {};
       if (minRating) filterQuery.rating.$gte = parseInt(minRating);
       if (maxRating) filterQuery.rating.$lte = parseInt(maxRating);
+    }
+    
+    // Media type filter
+    if (mediaType && mediaType !== 'all') {
+      filterQuery.mediaType = mediaType;
     }
     
     // Genre (partial match)
@@ -279,7 +325,7 @@ app.get('/api/ratings/filter', async (req, res) => {
   }
 });
 
-// Add a tracked product (bonus endpoint)
+// Add a tracked product
 app.post('/api/tracker/add', async (req, res) => {
   try {
     const { userId, productId, productName, category, price, url } = req.body;
@@ -316,7 +362,13 @@ app.post('/api/tracker/add', async (req, res) => {
   }
 });
 
+// Route to verify API key - useful for client testing
+app.get('/api/auth/verify', (req, res) => {
+  res.json({ status: 'success', message: 'API key is valid' });
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`API is protected with API key authentication`);
 });
