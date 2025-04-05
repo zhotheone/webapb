@@ -164,15 +164,28 @@ async function loadFilterOptions() {
         const response = await fetch(API_CONFIG.getApiUrl(`rate/filters/${currentUserId}`));
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            console.warn(`Filter options returned status: ${response.status}`);
+            // Use empty defaults if the endpoint fails
+            filterOptions = {
+                mediaTypes: [],
+                years: [],
+                ratings: []
+            };
+        } else {
+            filterOptions = await response.json();
         }
         
-        filterOptions = await response.json();
-        
-        // Update the filter UI with new options
+        // Update the filter UI with available options
         populateFilterOptions();
     } catch (error) {
         console.error('Error loading filter options:', error);
+        // Use empty defaults if the endpoint fails
+        filterOptions = {
+            mediaTypes: [],
+            years: [],
+            ratings: []
+        };
+        populateFilterOptions();
     }
 }
 

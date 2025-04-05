@@ -13,9 +13,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Проміжне ПЗ
-app.use(cors());
+app.use(cors({
+  origin: '*', // Allow all origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 app.use(bodyParser.json());
 app.use(express.static('public')); // Обслуговування статичних файлів з директорії 'public'
+
+// Add a CORS preflight handler for all routes
+app.options('*', cors());
 
 // Підключення до MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/telegram_app';

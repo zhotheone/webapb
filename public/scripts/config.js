@@ -3,7 +3,11 @@ const API_CONFIG = {
     // Change this to your deployed API URL when deploying
     // local development: http://localhost:10000/api
     // production: https://webapp.onrender.com/api
-    API_BASE_URL: 'https://webapp.onrender.com/api',
+    
+    // Auto-detect whether we're running locally or not
+    API_BASE_URL: window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000/api'  // Local development
+        : 'https://webapp.onrender.com/api',  // Production
     
     // Helper methods for API calls
     getApiUrl: function(endpoint) {
