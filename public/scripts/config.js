@@ -1,7 +1,7 @@
 // API Configuration
 const API_CONFIG = {
-    // API base URL
-    API_BASE_URL: 'https://webapp.onrender.com/api',
+    // API base URL - using relative path to avoid CORS issues as frontend and API are on the same origin
+    API_BASE_URL: '/api',
     
     // Enable local mock data
     USE_MOCK_DATA: true,
