@@ -70,7 +70,7 @@ const PORT = process.env.PORT || 10000;
 app.use(cors({
   origin: '*', // Allow requests from any origin
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Telegram-Init-Data'],
   credentials: true,
   preflightContinue: false,
   optionsSuccessStatus: 204
