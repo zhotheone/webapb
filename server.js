@@ -67,17 +67,9 @@ async function connectToDatabase() {
     }
 }
 
-// API маршрути для рейтингів
-app.get('/api/rate/search/:query', async (req, res) => {
-    try {
-        const query = req.params.query;
-        const response = await axios.get(`http://www.omdbapi.com/?s=${query}&apikey=${OMDB_API_KEY}`);
-        
-        if (response.data.Response === 'False') {
-            return res.status(404).json({ error: response.data.Error || 'Результатів не знайдено' });
-
 // Функція для парсингу URL товару та отримання деталей
 async function parseProductUrl(url) {
+    console.log(`Parsing URL: ${url}`);
     // Визначення, якому сайту належить URL
     if (url.includes('store.steampowered.com')) {
         return await parseSteamUrl(url);
@@ -90,399 +82,490 @@ async function parseProductUrl(url) {
     }
 }
 
-// Парсинг URL Steam
+/**
+ * Parse Steam URL to extract product details
+ * @param {string} url - Steam product URL
+ * @returns {object} - Product details
+ */
 async function parseSteamUrl(url) {
-    try {
-        console.log(`Отримання сторінки Steam: ${url}`);
-        
-        // Налаштування заголовків для обходу перевірки віку та примусове використання української локалі/валюти
-        const headers = {
-            'Accept-Language': 'uk-UA,uk;q=0.9',
-            'Cookie': 'birthtime=315532800; lastagecheckage=1-0-1980; mature_content=1; wants_mature_content=1',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        };
-        
-        // Додати параметри запиту cc та lc для примусового використання української локалі та валюти
-        const separator = url.includes('?') ? '&' : '?';
-        const urlWithParams = `${url}${separator}cc=UA&l=ukrainian`;
-        
-        console.log(`Запит URL з українською локаллю: ${urlWithParams}`);
-        const response = await axios.get(urlWithParams, { headers });
-        const html = response.data;
-        const $ = cheerio.load(html);
-        
-        // Отримання назви товару
-        let productName = '';
-        // Спробувати різні селектори, поки не знайдемо той, що працює
-        const nameSelectors = [
-            '.apphub_AppName',
-            'div.page_title_area h2.pageheader', 
-            '#appHubAppName',
-            '.game_title_area .game_name'
-        ];
-        
-        for (const selector of nameSelectors) {
-            productName = $(selector).first().text().trim();
-            if (productName) break;
-        }
-        
-        if (!productName) {
-            productName = 'Невідома гра у Steam';
-        }
-        
-        // Отримання категорії
-        let category = 'Гра';
-        const genreSelectors = [
-            '.details_block a[href*="genre"]',
-            '.game_details_elements a[href*="genre"]',
-            '.glance_tags.popular_tags a'
-        ];
-        
-        for (const selector of genreSelectors) {
-            const element = $(selector).first();
-            if (element.length) {
-                category = element.text().trim();
-                break;
-            }
-        }
-        
-        // Отримання інформації про ціну
-        let originalPrice = 0;
-        let salePrice = null;
-        let salePercent = null;
-        let status = 'fullprice';
-        
-        // Перевірка на знижку
-        const discountElement = $('.discount_pct, .discount_block .discount_pct');
-        if (discountElement.length && discountElement.text().trim() !== '') {
-            // Є знижка
-            status = 'sale';
-            
-            // Отримання відсотка знижки
-            const discountText = discountElement.text().trim().replace(/-|%/g, '');
-            salePercent = parseInt(discountText, 10) || 0;
-            
-            // Отримання початкової ціни
-            const originalPriceElement = $('.discount_original_price, .discount_prices .discount_original_price');
-            if (originalPriceElement.length) {
-                originalPrice = parsePrice(originalPriceElement.text().trim());
-            }
-            
-            // Отримання ціни зі знижкою
-            const salePriceElement = $('.discount_final_price, .discount_prices .discount_final_price');
-            if (salePriceElement.length) {
-                salePrice = parsePrice(salePriceElement.text().trim());
-            }
-        } else {
-            // Немає знижки, лише звичайна ціна
-            const priceSelectors = [
-                '.game_purchase_price.price', 
-                '.game_purchase_price', 
-                '.price',
-                '.your_price .price'
-            ];
-            
-            for (const selector of priceSelectors) {
-                const element = $(selector).first();
-                if (element.length && !element.text().includes('Free') && !element.text().includes('Безкоштовно')) {
-                    originalPrice = parsePrice(element.text().trim());
-                    break;
-                }
-            }
-        }
-        
-        // Перевірка, чи гра безкоштовна
-        const freeTextSelectors = [
-            '.game_area_purchase_game_wrapper',
-            '.game_area_purchase_game',
-            '.game_purchase_price'
-        ];
-        
-        let isFree = false;
-        for (const selector of freeTextSelectors) {
-            const text = $(selector).text().toLowerCase();
-            if (text.includes('free') || text.includes('безкоштовно')) {
-                isFree = true;
-                break;
-            }
-        }
-        
-        if (isFree) {
-            status = 'free';
-            originalPrice = 0;
-            salePrice = 0;
-        }
-        
-        console.log(`Проаналізовано товар Steam: ${productName}, Ціна: ${originalPrice}, Знижка: ${salePrice}, Статус: ${status}`);
-        
-        return {
-            productName,
-            category,
-            price: originalPrice,
-            salePrice: status === 'sale' ? salePrice : null,
-            salePercent: status === 'sale' ? salePercent : null,
-            status
-        };
-    } catch (error) {
-        console.error('Помилка аналізу сторінки Steam:', error);
-        throw new Error(`Не вдалося проаналізувати сторінку Steam: ${error.message}`);
+  try {
+    console.log(`Fetching Steam page: ${url}`);
+    
+    // Set up headers to bypass age check and force Ukrainian locale/currency
+    const headers = {
+      'Accept-Language': 'uk-UA,uk;q=0.9',
+      'Cookie': 'birthtime=315532800; lastagecheckage=1-0-1980; mature_content=1; wants_mature_content=1',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    };
+    
+    // Add cc and lc query parameters to force Ukrainian locale and currency
+    const separator = url.includes('?') ? '&' : '?';
+    const urlWithParams = `${url}${separator}cc=UA&l=ukrainian`;
+    
+    console.log(`Requesting URL with Ukrainian locale: ${urlWithParams}`);
+    const response = await axios.get(urlWithParams, { headers });
+    const html = response.data;
+    const $ = cheerio.load(html);
+    
+    // Extract product name - FIX: Handle doubled product names
+    let productName = '';
+    // Try multiple selectors until we find one that works
+    const nameSelectors = [
+      '.apphub_AppName',
+      'div.page_title_area h2.pageheader', 
+      '#appHubAppName',
+      '.game_title_area .game_name'
+    ];
+    
+    for (const selector of nameSelectors) {
+      productName = $(selector).first().text().trim();
+      if (productName) break;
     }
+    
+    if (!productName) {
+      productName = 'Unknown Steam Game';
+    }
+    
+    // Extract category
+    let category = 'Game';
+    const genreSelectors = [
+      '.details_block a[href*="genre"]',
+      '.game_details_elements a[href*="genre"]',
+      '.glance_tags.popular_tags a'
+    ];
+    
+    for (const selector of genreSelectors) {
+      const element = $(selector).first();
+      if (element.length) {
+        category = element.text().trim();
+        break;
+      }
+    }
+    
+    // Extract price information - handle different layouts
+    let originalPrice = 0;
+    let salePrice = null;
+    let salePercent = null;
+    let status = 'fullprice';
+    
+    // Check for discount
+    const discountElement = $('.discount_pct, .discount_block .discount_pct');
+    if (discountElement.length && discountElement.text().trim() !== '') {
+      // There is a discount
+      status = 'sale';
+      
+      // Extract discount percentage
+      const discountText = discountElement.text().trim().replace(/-|%/g, '');
+      salePercent = parseInt(discountText, 10) || 0;
+      
+      // Extract original price
+      const originalPriceElement = $('.discount_original_price, .discount_prices .discount_original_price');
+      if (originalPriceElement.length) {
+        originalPrice = parsePrice(originalPriceElement.text().trim());
+      }
+      
+      // Extract sale price
+      const salePriceElement = $('.discount_final_price, .discount_prices .discount_final_price');
+      if (salePriceElement.length) {
+        salePrice = parsePrice(salePriceElement.text().trim());
+      }
+    } else {
+      // No discount, just regular price
+      const priceSelectors = [
+        '.game_purchase_price.price', 
+        '.game_purchase_price', 
+        '.price',
+        '.your_price .price'
+      ];
+      
+      for (const selector of priceSelectors) {
+        const element = $(selector).first();
+        if (element.length && !element.text().includes('Free')) {
+          originalPrice = parsePrice(element.text().trim());
+          break;
+        }
+      }
+    }
+    
+    // Check if free to play
+    const freeTextSelectors = [
+      '.game_area_purchase_game_wrapper',
+      '.game_area_purchase_game',
+      '.game_purchase_price'
+    ];
+    
+    let isFree = false;
+    for (const selector of freeTextSelectors) {
+      const text = $(selector).text().toLowerCase();
+      if (text.includes('free') || text.includes('безкоштовно')) {
+        isFree = true;
+        break;
+      }
+    }
+    
+    if (isFree) {
+      status = 'free';
+      originalPrice = 0;
+      salePrice = 0;
+    }
+    
+    console.log(`Parsed Steam product: ${productName}, Price: ${originalPrice}, Sale: ${salePrice}, Status: ${status}`);
+    
+    return {
+      productName,
+      category,
+      price: originalPrice,
+      salePrice: status === 'sale' ? salePrice : null,
+      salePercent: status === 'sale' ? salePercent : null,
+      status
+    };
+  } catch (error) {
+    console.error('Error parsing Steam page:', error);
+    throw new Error(`Failed to parse Steam page: ${error.message}`);
+  }
 }
 
-// Парсинг URL Comfy
+/**
+ * Parse Comfy URL to extract product details
+ * @param {string} url - Comfy product URL
+ * @returns {object} - Product details
+ */
 async function parseComfyUrl(url) {
-    try {
-        console.log(`Отримання сторінки Comfy: ${url}`);
-        
-        // Налаштування комплексних заголовків для імітації реального браузера
-        const headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-            'Accept-Language': 'uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://comfy.ua/',
-            'Cache-Control': 'max-age=0',
-            'Connection': 'keep-alive'
-        };
-        
-        // Створення примірника axios з таймаутом та підтримкою cookies
-        const requestOptions = {
-            headers,
-            timeout: 10000,
-            withCredentials: true
-        };
-        
-        const response = await axios.get(url, requestOptions);
-        const html = response.data;
-        const $ = cheerio.load(html);
-        
-        // Отримання назви товару з використанням правильного селектора
-        let productName = $('.gen-tab__name').text().trim();
-        
-        if (!productName) {
-            // Спробувати альтернативні селектори
-            productName = $('.product__heading-container h1').text().trim() || 
-                         $('.product-card__name').text().trim() ||
-                         $('.product-header__title').text().trim();
-        }
-        
-        // Отримання категорії
-        let category = 'Електроніка';
-        const breadcrumbs = $('.breadcrumbs');
-        if (breadcrumbs.length) {
-            // Отримати передостаній хлібний крихт як категорію
-            const breadcrumbItems = breadcrumbs.find('a');
-            if (breadcrumbItems.length > 1) {
-                category = $(breadcrumbItems[breadcrumbItems.length - 2]).text().trim();
-            }
-        }
-        
-        // Отримання інформації про ціну з використанням правильних селекторів
-        let originalPrice = 0;
-        let salePrice = null;
-        let salePercent = null;
-        let status = 'fullprice';
-        
-        // Перевірка на знижку з використанням правильного селектора
-        const oldPriceElement = $('.price__old-price');
-        const currentPriceElement = $('.price__current');
-        const discountPercentElement = $('.price__percent-discount');
-        
-        // Якщо є стара ціна, то є знижка
-        if (oldPriceElement.length) {
-            status = 'sale';
-            
-            // Отримання початкової ціни
-            originalPrice = parsePrice(oldPriceElement.text().trim());
-            
-            // Отримання ціни зі знижкою
-            if (currentPriceElement.length) {
-                salePrice = parsePrice(currentPriceElement.text().trim());
-            }
-            
-            // Отримання відсотка знижки безпосередньо з елемента
-            if (discountPercentElement.length) {
-                const discountText = discountPercentElement.text().trim().replace(/[-%]/g, '');
-                salePercent = parseInt(discountText, 10);
-            } else if (originalPrice > 0 && salePrice > 0) {
-                // Обчислити, якщо не знайдено на сторінці
-                salePercent = Math.round((1 - salePrice / originalPrice) * 100);
-            }
-        } else if (currentPriceElement.length) {
-            // Немає знижки, лише звичайна ціна
-            originalPrice = parsePrice(currentPriceElement.text().trim());
-        }
-        
-        console.log(`Проаналізовано товар Comfy: ${productName}, Ціна: ${originalPrice}, Знижка: ${salePrice}, Статус: ${status}`);
-        
-        return {
-            productName: productName || 'Невідомий товар Comfy',
-            category,
-            price: originalPrice,
-            salePrice: status === 'sale' ? salePrice : null,
-            salePercent: status === 'sale' ? salePercent : null,
-            status
-        };
-    } catch (error) {
-        console.error('Помилка аналізу сторінки Comfy:', error);
-        throw new Error(`Не вдалося проаналізувати сторінку Comfy: ${error.message}`);
+  try {
+    console.log(`Fetching Comfy page: ${url}`);
+    
+    // Set more comprehensive headers to mimic a real browser
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+      'Accept-Language': 'uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Referer': 'https://comfy.ua/',
+      'Cache-Control': 'max-age=0',
+      'Connection': 'keep-alive',
+      'Sec-Ch-Ua': '"Chromium";v="98", " Not A;Brand";v="99"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1'
+    };
+    
+    // Create axios instance with a timeout and cookies enabled
+    const requestOptions = {
+      headers,
+      timeout: 10000,
+      withCredentials: true
+    };
+    
+    const response = await axios.get(url, requestOptions);
+    const html = response.data;
+    const $ = cheerio.load(html);
+    
+    // Extract product name using the correct selector
+    let productName = $('.gen-tab__name').text().trim();
+    
+    if (!productName) {
+      // Try alternative selectors
+      productName = $('.product__heading-container h1').text().trim() || 
+                   $('.product-card__name').text().trim() ||
+                   $('.product-header__title').text().trim();
     }
+    
+    // Extract category
+    let category = 'Electronics';
+    const breadcrumbs = $('.breadcrumbs');
+    if (breadcrumbs.length) {
+      // Get the second-to-last breadcrumb as the category
+      const breadcrumbItems = breadcrumbs.find('a');
+      if (breadcrumbItems.length > 1) {
+        category = $(breadcrumbItems[breadcrumbItems.length - 2]).text().trim();
+      }
+    }
+    
+    // Extract price information using the correct selectors
+    let originalPrice = 0;
+    let salePrice = null;
+    let salePercent = null;
+    let status = 'fullprice';
+    
+    // Check for discount using the correct selector
+    const oldPriceElement = $('.price__old-price');
+    const currentPriceElement = $('.price__current');
+    const discountPercentElement = $('.price__percent-discount');
+    
+    // If old price exists, there's a sale
+    if (oldPriceElement.length) {
+      status = 'sale';
+      
+      // Extract original price
+      originalPrice = parsePrice(oldPriceElement.text().trim());
+      
+      // Extract sale price
+      if (currentPriceElement.length) {
+        salePrice = parsePrice(currentPriceElement.text().trim());
+      }
+      
+      // Get the discount percentage directly from the element
+      if (discountPercentElement.length) {
+        const discountText = discountPercentElement.text().trim().replace(/[-%]/g, '');
+        salePercent = parseInt(discountText, 10);
+      } else if (originalPrice > 0 && salePrice > 0) {
+        // Calculate if not found on the page
+        salePercent = Math.round((1 - salePrice / originalPrice) * 100);
+      }
+    } else if (currentPriceElement.length) {
+      // No discount, just regular price
+      originalPrice = parsePrice(currentPriceElement.text().trim());
+    }
+    
+    console.log(`Parsed Comfy product: ${productName}, Price: ${originalPrice}, Sale: ${salePrice}, Status: ${status}`);
+    
+    return {
+      productName: productName || 'Unknown Comfy Product',
+      category,
+      price: originalPrice,
+      salePrice: status === 'sale' ? salePrice : null,
+      salePercent: status === 'sale' ? salePercent : null,
+      status
+    };
+  } catch (error) {
+    console.error('Error parsing Comfy page:', error);
+    throw new Error(`Failed to parse Comfy page: ${error.message}`);
+  }
 }
 
-// Парсинг URL Rozetka
+/**
+ * Parse Rozetka URL to extract product details
+ * @param {string} url - Rozetka product URL
+ * @returns {object} - Product details
+ */
 async function parseRozetkaUrl(url) {
-    try {
-        console.log(`Отримання сторінки Rozetka: ${url}`);
-        
-        // Налаштування розширених заголовків у стилі браузера
-        const headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Referer': 'https://rozetka.com.ua/',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
-        };
-        
-        const response = await axios.get(url, { headers });
-        const html = response.data;
-        const $ = cheerio.load(html);
-        
-        // Отримання назви товару з використанням правильного селектора
-        // Взяти лише перший збіг заголовка
-        const productName = $('.title__font').first().text().trim();
-        
-        // Якщо заголовок порожній, спробувати альтернативні селектори
-        let finalProductName = productName;
-        if (!finalProductName) {
-            finalProductName = $('h1[itemprop="name"]').first().text().trim() || 
-                              $('.product__title-left h1').first().text().trim();
-        }
-        
-        // Повторна перевірка на порожні результати
-        finalProductName = finalProductName || 'Невідомий товар Rozetka';
-        
-        // Отримання категорії
-        let category = 'Електроніка';
-        const breadcrumbItems = $('.breadcrumbs__item');
-        if (breadcrumbItems.length > 1) {
-            category = $(breadcrumbItems[breadcrumbItems.length - 2]).text().trim();
-        }
-        
-        // Отримання інформації про ціну з використанням правильних селекторів
-        let originalPrice = 0;
-        let salePrice = null;
-        let salePercent = null;
-        let status = 'fullprice';
-        
-        // Перевірка на знижку - якщо є мала ціна, то є знижка
-        const originalPriceElement = $('.product-price__small');
-        const salePriceElement = $('.product-price__big.product-price__big-color-red');
-        const regularPriceElement = $('.product-price__big:not(.product-price__big-color-red)');
-        
-        // Перевірка, чи товар на розпродажі
-        if (originalPriceElement.length && salePriceElement.length) {
-            status = 'sale';
-            
-            // Отримання початкової ціни
-            originalPrice = parsePrice(originalPriceElement.text().trim());
-            
-            // Отримання ціни зі знижкою
-            salePrice = parsePrice(salePriceElement.text().trim());
-            
-            // Спробувати отримати відсоток знижки зі сторінки
-            const discountElement = $('.product-price__discount');
-            if (discountElement.length) {
-                const discountText = discountElement.text().trim().replace(/[-%]/g, '');
-                salePercent = parseInt(discountText, 10);
-            }
-            
-            // Якщо відсоток знижки не знайдено або некоректний, обчислити його
-            if (!salePercent && originalPrice > 0 && salePrice > 0) {
-                salePercent = Math.round((1 - salePrice / originalPrice) * 100);
-            }
-        } else if (regularPriceElement.length) {
-            // Немає знижки, лише звичайна ціна
-            originalPrice = parsePrice(regularPriceElement.text().trim());
-        }
-        
-        console.log(`Проаналізовано товар Rozetka: ${finalProductName}, Ціна: ${originalPrice}, Знижка: ${salePrice}, Статус: ${status}`);
-        
-        return {
-            productName: finalProductName,
-            category,
-            price: originalPrice,
-            salePrice: status === 'sale' ? salePrice : null,
-            salePercent: status === 'sale' ? salePercent : null,
-            status
-        };
-    } catch (error) {
-        console.error('Помилка аналізу сторінки Rozetka:', error);
-        throw new Error(`Не вдалося проаналізувати сторінку Rozetka: ${error.message}`);
+  try {
+    console.log(`Fetching Rozetka page: ${url}`);
+    
+    // Set enhanced browser-like headers
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Referer': 'https://rozetka.com.ua/',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1'
+    };
+    
+    const response = await axios.get(url, { headers });
+    const html = response.data;
+    const $ = cheerio.load(html);
+    
+    // Extract product name using the correct selector and avoid duplication
+    // Take only the first match of the title
+    const productName = $('.title__font').first().text().trim();
+    
+    // If the title is empty, try alternative selectors
+    let finalProductName = productName;
+    if (!finalProductName) {
+      finalProductName = $('h1[itemprop="name"]').first().text().trim() || 
+                        $('.product__title-left h1').first().text().trim();
     }
+    
+    // Double-check for empty results
+    finalProductName = finalProductName || 'Unknown Rozetka Product';
+    
+    // Extract category
+    let category = 'Electronics';
+    const breadcrumbItems = $('.breadcrumbs__item');
+    if (breadcrumbItems.length > 1) {
+      category = $(breadcrumbItems[breadcrumbItems.length - 2]).text().trim();
+    }
+    
+    // Extract price information using the correct selectors
+    let originalPrice = 0;
+    let salePrice = null;
+    let salePercent = null;
+    let status = 'fullprice';
+    
+    // Check for discount - if small price exists, there's a sale
+    const originalPriceElement = $('.product-price__small');
+    const salePriceElement = $('.product-price__big.product-price__big-color-red');
+    const regularPriceElement = $('.product-price__big:not(.product-price__big-color-red)');
+    
+    // Check if the product is on sale
+    if (originalPriceElement.length && salePriceElement.length) {
+      status = 'sale';
+      
+      // Extract original price
+      originalPrice = parsePrice(originalPriceElement.text().trim());
+      
+      // Extract sale price
+      salePrice = parsePrice(salePriceElement.text().trim());
+      
+      // Try to get the discount percentage from the page
+      const discountElement = $('.product-price__discount');
+      if (discountElement.length) {
+        const discountText = discountElement.text().trim().replace(/[-%]/g, '');
+        salePercent = parseInt(discountText, 10);
+      }
+      
+      // If discount percentage not found or invalid, calculate it
+      if (!salePercent && originalPrice > 0 && salePrice > 0) {
+        salePercent = Math.round((1 - salePrice / originalPrice) * 100);
+      }
+    } else if (regularPriceElement.length) {
+      // No discount, just regular price
+      originalPrice = parsePrice(regularPriceElement.text().trim());
+    }
+    
+    console.log(`Parsed Rozetka product: ${finalProductName}, Price: ${originalPrice}, Sale: ${salePrice}, Status: ${status}`);
+    
+    return {
+      productName: finalProductName,
+      category,
+      price: originalPrice,
+      salePrice: status === 'sale' ? salePrice : null,
+      salePercent: status === 'sale' ? salePercent : null,
+      status
+    };
+  } catch (error) {
+    console.error('Error parsing Rozetka page:', error);
+    throw new Error(`Failed to parse Rozetka page: ${error.message}`);
+  }
 }
 
-// Парсинг рядка ціни у число
+/**
+ * Parse price string to number
+ * @param {string} priceStr - Price string (e.g., "₴199.99", "199,99₴", "199 грн")
+ * @returns {number} - Price as number
+ */
 function parsePrice(priceStr) {
     if (!priceStr) return 0;
     
-    // Видалення символів валюти, пробілів та нечислових символів, крім . та ,
+    // Remove currency symbols, spaces, and non-numeric characters except for . and ,
     const cleaned = priceStr.replace(/[^\d.,]/g, '');
     
-    // Обробка як точки, так і коми в якості десяткового розділювача
+    // Handle both dot and comma as decimal separator
     const withDot = cleaned.replace(',', '.');
     
-    // Перетворення на число з плаваючою точкою
+    // Parse to float
     const price = parseFloat(withDot);
     return isNaN(price) ? 0 : price;
-}
+  }
 
 // Отримання платформи з URL
-function getPlatformFromUrl(url) {
-    if (url.includes('store.steampowered.com') || url.includes('steamcommunity.com')) {
-        return 'steam';
-    } else if (url.includes('comfy.ua')) {
-        return 'comfy';
-    } else if (url.includes('rozetka.com.ua')) {
-        return 'rozetka';
-    } else {
+function getPlatformFromURL(url) {
+    if (!url) {
+        console.warn('Empty URL provided to getPlatformFromURL');
+        return null;
+    }
+
+    try {
+        const lowercaseUrl = url.toLowerCase();
+
+        // Steam platform detection
+        if (lowercaseUrl.includes('store.steampowered.com') || 
+            lowercaseUrl.includes('steamcommunity.com')) {
+            return 'steam';
+        } 
+        
+        // Comfy platform detection
+        else if (lowercaseUrl.includes('comfy.ua')) {
+            return 'comfy';
+        } 
+        
+        // Rozetka platform detection
+        else if (lowercaseUrl.includes('rozetka.com.ua')) {
+            return 'rozetka';
+        }
+        
+        // Unknown platform
+        console.warn(`Unknown platform for URL: ${url}`);
+        return null;
+    } catch (error) {
+        console.error('Error in getPlatformFromURL:', error);
         return null;
     }
 }
 
 // Отримання валюти для платформи
 function getCurrencyForPlatform(platform) {
-    switch(platform) {
-        case 'steam':
-            return '₴';
-        case 'comfy':
-        case 'rozetka':
-            return '₴';
-        default:
-            return '₴';
+    if (!platform) {
+        console.warn('Empty platform provided to getCurrencyForPlatform');
+        return '₴'; // Default to Ukrainian Hryvnia
     }
-}
 
-// Створення ID товару на основі URL
-function generateProductId(url) {
-    // Створення хешу URL
-    let hash = 0;
-    for (let i = 0; i < url.length; i++) {
-        const char = url.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Перетворити на 32-бітне ціле число
-    }
-    return 'product_' + Math.abs(hash).toString(16);
-}
+    // Currency mapping for each platform
+    const currencyMap = {
+        'steam': '₴',    // Ukrainian Hryvnia for Steam
+        'comfy': '₴',    // Ukrainian Hryvnia for Comfy
+        'rozetka': '₴',  // Ukrainian Hryvnia for Rozetka
+    };
 
-// Запуск сервера
-(async () => {
-    await connectToDatabase();
+    // Get the currency or default to Ukrainian Hryvnia if platform not found
+    const currency = currencyMap[platform.toLowerCase()] || '₴';
     
-    app.listen(PORT, () => {
-        console.log(`Сервер запущено на порту ${PORT}`);
-    });
-})();
+    return currency;
+}
+
+/**
+ * Generate a stable product ID from URL
+ * @param {string} url - Product URL
+ * @returns {string} - Generated product ID
+ */
+function generateProductId(url) {
+    // Extract the domain and path
+    try {
+      const urlObj = new URL(url);
+      let path = urlObj.pathname;
+      
+      // Remove trailing slash
+      if (path.endsWith('/')) {
+        path = path.slice(0, -1);
+      }
+      
+      // Extract the last part of the path for most product URLs
+      const parts = path.split('/');
+      const lastPart = parts[parts.length - 1];
+      
+      if (url.includes('store.steampowered.com')) {
+        // For Steam, use app/{id} format
+        const appIdMatch = url.match(/app\/(\d+)/);
+        if (appIdMatch && appIdMatch[1]) {
+          return `steam_${appIdMatch[1]}`;
+        }
+      }
+      
+      // Default: use domain + last part of path
+      const domain = urlObj.hostname.replace('www.', '');
+      return `${domain}_${lastPart}`;
+    } catch (error) {
+      // Fallback: hash the URL
+      return `product_${Math.abs(hashCode(url))}`;
+    }
+  }
+  
+  /**
+   * Simple string hash function
+   */
+  function hashCode(str) {
+    let hash = 0;
+    for (let i = 0, len = str.length; i < len; i++) {
+      let chr = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + chr;
+      hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
+  }
+
+// API маршрути для рейтингів
+app.get('/api/rate/search/:query', async (req, res) => {
+    try {
+        const query = req.params.query;
+        const response = await axios.get(`http://www.omdbapi.com/?s=${query}&apikey=${OMDB_API_KEY}`);
+        
+        if (response.data.Response === 'False') {
+            return res.status(404).json({ error: response.data.Error || 'Результатів не знайдено' });
         }
         
         // Трансформація даних для відповідності формату нашого фронтенду
@@ -982,7 +1065,7 @@ app.post('/api/tracker/add', async (req, res) => {
                             salePrice: productDetails.salePrice,
                             salePercent: productDetails.salePercent,
                             status: productDetails.status,
-                            platform: getPlatformFromUrl(url),
+                            platform: getPlatformFromURL(url),
                             updatedAt: new Date()
                         }
                     }
@@ -1004,8 +1087,8 @@ app.post('/api/tracker/add', async (req, res) => {
                     salePrice: productDetails.salePrice,
                     salePercent: productDetails.salePercent,
                     status: productDetails.status,
-                    platform: getPlatformFromUrl(url),
-                    currency: getCurrencyForPlatform(getPlatformFromUrl(url)),
+                    platform: getPlatformFromURL(url),
+                    currency: getCurrencyForPlatform(getPlatformFromURL(url)),
                     dateAdded: new Date(),
                     updatedAt: new Date()
                 };
@@ -1053,8 +1136,8 @@ app.post('/api/tracker/add/force', async (req, res) => {
             salePrice: productDetails.salePrice,
             salePercent: productDetails.salePercent,
             status: productDetails.status,
-            platform: getPlatformFromUrl(url),
-            currency: getCurrencyForPlatform(getPlatformFromUrl(url)),
+            platform: getPlatformFromURL(url),
+            currency: getCurrencyForPlatform(getPlatformFromURL(url)),
             dateAdded: new Date(),
             updatedAt: new Date()
         };

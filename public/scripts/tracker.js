@@ -1,6 +1,6 @@
 // Трекер товарів - Розширена версія з підтримкою Steam, Rozetka та Comfy
 let trackedItems = [];
-let currentUserId = '594235906'; // Буде встановлено зі сторони Telegram WebApp
+console.log(currentUserId);
 
 function debugAPI(message) {
     console.log(`🔍 [Трекер Налагодження] ${message}`);
@@ -17,41 +17,94 @@ let trackerSort = {
     order: 'desc'
 };
 
-// Ініціалізація відстеження товарів
-document.addEventListener('DOMContentLoaded', function() {
+// Ініціалізація відстеження товарів - використовуємо DOMContentLoaded з одноразовим викликом
+document.addEventListener('DOMContentLoaded', initializeTracker);
+
+function initializeTracker() {
+    debugAPI("Ініціалізація трекера почалась");
+    
     // Отримати ID користувача з Telegram WebApp, якщо доступний
-    if (telegram.initDataUnsafe && telegram.initDataUnsafe.user) {
-        currentUserId = telegram.initDataUnsafe.user.id.toString();
+    try {
+        if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+            currentUserId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+            debugAPI(`ID користувача отримано з Telegram: ${currentUserId}`);
+        } else {
+            debugAPI(`Використовуємо ID користувача за замовчуванням: ${currentUserId}`);
+        }
+    } catch (e) {
+        debugAPI(`Помилка отримання ID користувача: ${e.message}`);
     }
     
-    setupTracker();
-    setupTrackerFilters();
-});
+    // Налаштовуємо трекер і фільтри після короткої затримки для завершення рендерингу DOM
+    setTimeout(() => {
+        setupTrackerHandlers();
+        setupTrackerFilters();
+        debugAPI("Ініціалізація трекера завершена");
+    }, 200);
+}
+
+// Спрощене налаштування обробників трекера
+function setupTrackerHandlers() {
+    const trackerInput = document.getElementById('trackerInput');
+    const addTrackerBtn = document.getElementById('addTrackerBtn');
+    
+    debugAPI(`Пошук елементів трекера: 
+    - Input елемент: ${trackerInput ? 'знайдено' : 'НЕ ЗНАЙДЕНО!'}
+    - Кнопка додавання: ${addTrackerBtn ? 'знайдено' : 'НЕ ЗНАЙДЕНО!'}`);
+    
+    if (!trackerInput) {
+        debugAPI("⚠️ КРИТИЧНА ПОМИЛКА: Елемент вводу URL #trackerInput не знайдено!");
+        return;
+    }
+    
+    if (!addTrackerBtn) {
+        debugAPI("⚠️ КРИТИЧНА ПОМИЛКА: Кнопка додавання #addTrackerBtn не знайдено!");
+        return;
+    }
+    
+    // Використовуємо пряме призначення обробників подій з вбудованими функціями
+    addTrackerBtn.onclick = function(e) {
+        e.preventDefault();
+        debugAPI("Натиснуто кнопку додавання");
+        handleAddItemAction();
+    };
+    
+    trackerInput.onkeyup = function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            debugAPI("Натиснуто Enter в полі вводу");
+            handleAddItemAction();
+        }
+    };
+    
+    debugAPI("✅ Обробники подій трекера успішно налаштовані");
+}
+
+// Централізована функція для додавання товару
+function handleAddItemAction() {
+    const trackerInput = document.getElementById('trackerInput');
+    if (!trackerInput) {
+        debugAPI("⚠️ Поле вводу не знайдено при спробі додати товар");
+        API_CONFIG.showToast("Помилка: поле вводу не знайдено");
+        return;
+    }
+    
+    const url = trackerInput.value?.trim();
+    debugAPI(`Спроба додати товар з URL: ${url}`);
+    
+    // Проста валідація URL
+    if (!url) {
+        API_CONFIG.showToast("Будь ласка, введіть URL товару");
+        return;
+    }
+    
+    addTrackedItem(url);
+}
 
 // Завантаження відстежуваних товарів
 function loadTrackerItems() {
     debugAPI("loadTrackerItems викликана");
     fetchTrackedItems();
-}
-
-// Налаштування трекера
-function setupTracker() {
-    const trackerInput = document.getElementById('trackerInput');
-    const addTrackerBtn = document.getElementById('addTrackerBtn');
-    
-    if (!trackerInput || !addTrackerBtn) return;
-    
-    // Додавання нового товару по кліку на кнопку
-    addTrackerBtn.addEventListener('click', () => {
-        addTrackedItem();
-    });
-    
-    // Додавання нового товару при натисканні Enter
-    trackerInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            addTrackedItem();
-        }
-    });
 }
 
 // Налаштування фільтрів трекера
@@ -196,11 +249,11 @@ function renderFilteredItems(items) {
     addTrackedItemEventListeners();
 }
 
-// Отримання відстежуваних товарів з API
+// Отримання відстежуваних товарів з API - спрощений і більш надійний підхід
 async function fetchTrackedItems() {
     const trackedItemsContainer = document.getElementById('trackedItems');
     if (!trackedItemsContainer) {
-        debugAPI("Контейнер trackedItems не знайдено");
+        debugAPI("Контейнер #trackedItems не знайдено");
         return;
     }
     
@@ -213,26 +266,29 @@ async function fetchTrackedItems() {
     `;
     
     try {
-        // Повний URL API для зрозумілого налагодження
-        const apiUrl = `tracker/${currentUserId}`;
-        debugAPI(`Виконуємо запит: GET ${apiUrl}`);
+        debugAPI(`Запит товарів для користувача ${currentUserId}`);
         
-        // Використовуємо fetchWithCORS замість fetch для уникнення CORS-помилок
-        const data = await API_CONFIG.fetchWithCORS(apiUrl);
-        debugAPI(`Отримано ${data.length} товарів з API`);
+        // Використовуємо спрощений підхід без додаткових обгорток
+        const response = await fetch(`/api/tracker/${currentUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`Сервер повернув помилку: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        debugAPI(`Отримано ${Array.isArray(data) ? data.length : '0'} товарів з API`);
         
         // Зберігаємо отримані дані
         trackedItems = Array.isArray(data) ? data : [];
         
-        // Застосувати фільтри та сортування за замовчуванням
+        // Застосувати фільтри та сортування
         applyFiltersAndSort();
     } catch (error) {
         debugAPI(`Помилка завантаження: ${error.message}`);
-        console.error('Помилка завантаження відстежуваних товарів:', error);
         trackedItemsContainer.innerHTML = `
             <div class="tracker-error">
                 <span class="material-icons">error_outline</span>
-                <p>Не вдалося завантажити відстежувані товари 😢</p>
+                <p>Не вдалося завантажити відстежувані товари</p>
                 <p class="error-details">${error.message}</p>
                 <button id="retryTrackerBtn" class="button">Спробувати знову</button>
             </div>
@@ -241,133 +297,121 @@ async function fetchTrackedItems() {
         // Додати функціональність кнопки повторного завантаження
         const retryBtn = document.getElementById('retryTrackerBtn');
         if (retryBtn) {
-            retryBtn.addEventListener('click', () => {
-                fetchTrackedItems();
-            });
+            retryBtn.addEventListener('click', fetchTrackedItems);
         }
     }
 }
 
-// Додати новий відстежуваний товар
-async function addTrackedItem() {
-    const trackerInput = document.getElementById('trackerInput');
-    const addTrackerBtn = document.getElementById('addTrackerBtn');
+// Додати новий відстежуваний товар - спрощена і більш надійна версія
+async function addTrackedItem(url) {
+    if (!url) return;
     
-    if (!trackerInput || trackerInput.value.trim() === '') {
-        debugAPI("Поле вводу порожнє або не знайдено");
-        return;
-    }
-    
-    const url = trackerInput.value.trim();
-    debugAPI(`Додавання URL: ${url}`);
-    
-    // Перевірка формату URL
+    // Перевірка URL
     if (!isValidURL(url)) {
         API_CONFIG.showToast('Введіть коректний URL товару ⚠️');
-        debugAPI("Некоректний URL формат");
         return;
     }
     
-    // Перевірка, чи URL належить підтримуваній платформі
+    // Перевірка підтримки платформи
     const platform = getPlatformFromURL(url);
     if (!platform) {
         API_CONFIG.showToast('Підтримуються тільки товари Steam, Rozetka та Comfy 🛒');
-        debugAPI("Непідтримувана платформа");
         return;
     }
     
     // Показати стан завантаження
-    addTrackerBtn.disabled = true;
-    addTrackerBtn.innerHTML = '<span class="material-icons rotating">refresh</span>';
-    debugAPI("Починаємо запит до API");
+    const addTrackerBtn = document.getElementById('addTrackerBtn');
+    if (addTrackerBtn) {
+        addTrackerBtn.disabled = true;
+        addTrackerBtn.innerHTML = '<span class="material-icons rotating">refresh</span>';
+    }
     
     try {
-        // Сформувати URL для API
-        const apiUrl = `tracker/add`;
-        debugAPI(`Виконуємо запит: POST ${apiUrl}`);
-        
-        // Виклик API для додавання відстежуваного товару з використанням fetchWithCORS
-        const data = await API_CONFIG.fetchWithCORS(apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                userId: currentUserId,
-                url: url
-            })
+        // Підготовка даних запиту
+        const requestBody = JSON.stringify({
+            userId: currentUserId,
+            url: url
         });
         
-        debugAPI(`Успішна відповідь від API: ${JSON.stringify(data)}`);
+        debugAPI(`Додавання товару: ${url}`);
+        
+        // Використовуємо fetch напряму з правильними заголовками
+        const response = await fetch('/api/tracker/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: requestBody
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Помилка сервера: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Очистити поле вводу
+        const trackerInput = document.getElementById('trackerInput');
+        if (trackerInput) trackerInput.value = '';
         
         // Перевірка, чи товар вже на розпродажі
         if (data.alreadyOnSale) {
-            // Показати діалог з інформацією про розпродаж
-            API_CONFIG.showCustomDialog({
-                title: '💸 Товар вже на розпродажі!',
-                message: `"${data.saleDetails.productName}" вже у знижці!
-                
-Початкова ціна: ${data.saleDetails.originalPrice} ${getPlatformCurrency(platform)}
-Ціна зі знижкою: ${data.saleDetails.salePrice} ${getPlatformCurrency(platform)}
-Знижка: ${data.saleDetails.salePercent}%`,
-                buttons: [
-                    {id: 'add', type: 'default', text: 'Все одно відстежувати 🔍'},
-                    {id: 'cancel', type: 'cancel', text: 'Скасувати ✖️'},
-                ]
-            }, function(buttonId) {
-                if (buttonId === 'add') {
-                    addItemThatIsAlreadyOnSale(url);
-                }
-                trackerInput.value = '';
-            });
-        } else if (data.success || data._id) {
-            // Додати новий товар до відстежуваних
-            if (data.item) {
-                trackedItems.push(data.item);
-            } else {
-                // Якщо API повертає товар у іншому форматі
-                trackedItems.push(data);
-            }
-            
-            // Очистити поле вводу
-            trackerInput.value = '';
-            
-            // Застосувати фільтри та сортування
-            applyFiltersAndSort();
-            
-            // Показати повідомлення про успіх
-            API_CONFIG.showToast('Товар додано до відстеження ✅');
-            debugAPI("Товар успішно додано");
+            showSaleItemDialog(data, url);
         } else {
-            throw new Error(data.error || 'Невідома помилка відповіді API');
+            // Додавання товару до списку
+            if (data._id) {
+                trackedItems.push(data);
+                applyFiltersAndSort();
+                API_CONFIG.showToast('Товар додано до відстеження ✅');
+            }
         }
     } catch (error) {
         debugAPI(`Помилка додавання: ${error.message}`);
-        console.error('Помилка додавання відстежуваного товару:', error);
-        
-        if (error.message.includes('Unsupported website')) {
-            API_CONFIG.showToast('Вибачте, відстежуються тільки Steam, Comfy та Rozetka ⚠️');
-        } else {
-            API_CONFIG.showToast(error.message || 'Помилка додавання товару ❌');
-        }
+        API_CONFIG.showToast(`Помилка: ${error.message}`);
     } finally {
         // Відновити стан кнопки
-        addTrackerBtn.disabled = false;
-        addTrackerBtn.innerHTML = '<span class="material-icons">add</span>';
-        debugAPI("Стан кнопки відновлено");
+        const addTrackerBtn = document.getElementById('addTrackerBtn');
+        if (addTrackerBtn) {
+            addTrackerBtn.disabled = false;
+            addTrackerBtn.innerHTML = '<span class="material-icons">add</span>';
+        }
     }
+}
+
+// Показати діалог для товару на розпродажі
+function showSaleItemDialog(data, url) {
+    const details = data.saleDetails;
+    const platform = getPlatformFromURL(url);
+    const currency = getPlatformCurrency(platform);
+    
+    API_CONFIG.showCustomDialog({
+        title: '💸 Товар вже на розпродажі!',
+        message: `"${details.productName}" вже у знижці!
+        
+Початкова ціна: ${details.originalPrice} ${currency}
+Ціна зі знижкою: ${details.salePrice} ${currency}
+Знижка: ${details.salePercent}%`,
+        buttons: [
+            {id: 'add', type: 'default', text: 'Все одно відстежувати 🔍'},
+            {id: 'cancel', type: 'cancel', text: 'Скасувати ✖️'},
+        ]
+    }, function(buttonId) {
+        if (buttonId === 'add') {
+            addItemThatIsAlreadyOnSale(url);
+        }
+    });
 }
 
 // Додати товар, який вже на розпродажі
 async function addItemThatIsAlreadyOnSale(url) {
     try {
-        // Показати спінер завантаження
         API_CONFIG.showToast('Додаємо товар...');
         
-        const data = await API_CONFIG.fetchWithCORS(`tracker/add/force`, {
+        const response = await fetch('/api/tracker/add/force', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 userId: currentUserId,
@@ -375,17 +419,19 @@ async function addItemThatIsAlreadyOnSale(url) {
             })
         });
         
-        // Додати новий товар до відстежуваних
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Помилка сервера');
+        }
+        
+        const data = await response.json();
+        
         trackedItems.push(data);
-        
-        // Застосувати фільтри та сортування
         applyFiltersAndSort();
-        
-        // Показати повідомлення про успіх
         API_CONFIG.showToast('Товар додано до відстеження ✅');
     } catch (error) {
-        console.error('Помилка додавання товару:', error);
-        API_CONFIG.showToast(error.message || 'Помилка додавання товару ❌');
+        debugAPI(`Помилка: ${error.message}`);
+        API_CONFIG.showToast(`Помилка: ${error.message}`);
     }
 }
 
@@ -584,7 +630,7 @@ URL: ${item.url}
     });
 }
 
-// Видалити відстежуваний товар
+// Видалити відстежуваний товар - оновлена версія
 async function removeTrackedItem(itemId) {
     API_CONFIG.showCustomDialog({
         title: 'Видалення товару',
@@ -595,34 +641,33 @@ async function removeTrackedItem(itemId) {
         ]
     }, async function(buttonId) {
         if (buttonId === 'delete') {
-            // Показати індикатор завантаження
             API_CONFIG.showToast('Видаляємо...');
             
             try {
-                // Виклик API для видалення відстежуваного товару з використанням fetchWithCORS
-                const data = await API_CONFIG.fetchWithCORS(`tracker/remove/${currentUserId}/${itemId}`, {
+                const response = await fetch(`/api/tracker/remove/${currentUserId}/${itemId}`, {
                     method: 'DELETE'
                 });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Помилка видалення');
+                }
+                
+                const data = await response.json();
                 
                 if (data.success) {
                     // Видалити товар з локальних даних
                     trackedItems = trackedItems.filter(item => {
-                        // Перевірити всі можливі ID формати
                         const currentId = item.id || item._id || item.productId;
                         return currentId !== itemId;
                     });
                     
-                    // Застосувати фільтри та сортування
                     applyFiltersAndSort();
-                    
-                    // Показати підтвердження
                     API_CONFIG.showToast('Товар видалено з відстеження ✅');
-                } else {
-                    throw new Error(data.error || 'Невідома помилка');
                 }
             } catch (error) {
-                console.error('Помилка видалення відстежуваного товару:', error);
-                API_CONFIG.showToast(error.message || 'Помилка видалення товару ❌');
+                debugAPI(`Помилка видалення: ${error.message}`);
+                API_CONFIG.showToast('Помилка видалення товару ❌');
             }
         }
     });
