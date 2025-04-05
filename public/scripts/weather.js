@@ -206,3 +206,153 @@ function getWeatherIcon(condition) {
             return 'wb_sunny';
     }
 }
+
+// Weather UI script with city search functionality
+
+const DEFAULT_CITY = 'Запоріжжя';
+let currentCity = DEFAULT_CITY;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize weather component
+    initWeatherUI();
+    
+    // Load default city weather on page load
+    loadWeatherForCity(DEFAULT_CITY);
+});
+
+// Initialize the weather UI
+function initWeatherUI() {
+    // Create the search form if it doesn't exist
+    if (!document.getElementById('weatherSearchForm')) {
+        const weatherContainer = document.getElementById('weatherContainer');
+        if (!weatherContainer) return;
+        
+        // Add search form before the weather content
+        const searchForm = document.createElement('form');
+        searchForm.id = 'weatherSearchForm';
+        searchForm.className = 'weather-search-form';
+        searchForm.innerHTML = `
+            <div class="weather-search-wrapper">
+                <input 
+                    type="text" 
+                    id="citySearchInput" 
+                    placeholder="Введіть назву міста" 
+                    value="${DEFAULT_CITY}" 
+                    autocomplete="off"
+                />
+                <button type="submit" id="searchCityBtn">
+                    <span class="material-icons">search</span>
+                </button>
+            </div>
+        `;
+        
+        // Insert at the beginning of weather container
+        weatherContainer.insertBefore(searchForm, weatherContainer.firstChild);
+        
+        // Add event listeners
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const cityInput = document.getElementById('citySearchInput');
+            const city = cityInput.value.trim();
+            
+            if (city) {
+                loadWeatherForCity(city);
+            }
+        });
+    }
+}
+
+// Load weather data for specified city
+function loadWeatherForCity(city) {
+    if (!city) return;
+    
+    // Show loading state
+    const weatherContent = document.getElementById('weatherContent');
+    if (weatherContent) {
+        weatherContent.innerHTML = `
+            <div class="weather-loading">
+                <span class="material-icons rotating">refresh</span>
+                <p>Завантаження погоди для ${city}...</p>
+            </div>
+        `;
+    }
+    
+    // Update current city
+    currentCity = city;
+    
+    // Call the API to get weather data
+    fetch(`/api/weather/${encodeURIComponent(city)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Не вдалося отримати погоду для міста ${city}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            displayWeatherData(data);
+        })
+        .catch(error => {
+            console.error('Error fetching weather data:', error);
+            if (weatherContent) {
+                weatherContent.innerHTML = `
+                    <div class="weather-error">
+                        <span class="material-icons">error_outline</span>
+                        <p>Не вдалося завантажити дані погоди</p>
+                        <p class="error-details">${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+}
+
+// Display weather data in the UI
+function displayWeatherData(data) {
+    // Get the container for weather content
+    const weatherContent = document.getElementById('weatherContent');
+    if (!weatherContent) return;
+    
+    // Format the weather display
+    const html = `
+        <div class="weather-header">
+            <h2>${data.location}, ${data.country}</h2>
+        </div>
+        <div class="weather-current">
+            <div class="weather-temp">
+                <span class="temp-value">${data.temperature}°C</span>
+                <span class="temp-feels-like">Відчувається як ${data.feelsLike}°C</span>
+            </div>
+            <div class="weather-condition">
+                <span class="weather-icon ${data.condition}"></span>
+                <span class="condition-text">${data.description}</span>
+            </div>
+        </div>
+        <div class="weather-details">
+            <div class="weather-detail">
+                <span class="material-icons">water_drop</span>
+                <span>Вологість: ${data.humidity}%</span>
+            </div>
+            <div class="weather-detail">
+                <span class="material-icons">air</span>
+                <span>Вітер: ${data.windSpeed} км/г</span>
+            </div>
+            <div class="weather-detail">
+                <span class="material-icons">compress</span>
+                <span>Тиск: ${data.pressure} гПа</span>
+            </div>
+        </div>
+        <div class="weather-forecast">
+            <h3>Прогноз на 5 днів</h3>
+            <div class="forecast-list">
+                ${data.forecast.map(day => `
+                    <div class="forecast-item">
+                        <span class="day">${day.day}</span>
+                        <span class="weather-icon small ${day.condition}"></span>
+                        <span class="temp-range">${day.minTemp}° / ${day.maxTemp}°</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    
+    weatherContent.innerHTML = html;
+}
