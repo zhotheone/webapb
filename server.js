@@ -59,6 +59,9 @@ const cors = require('cors');
 const cheerio = require('cheerio');
 require('dotenv').config();
 
+// Import the Telegram authentication middleware
+const { telegramAuthMiddleware } = require('./middleware/telegramAuth');
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -198,6 +201,51 @@ app.get('/api/debug', (req, res) => {
     cors: 'enabled'
   });
 });
+
+// Add authentication routes
+app.post('/api/auth/validate', (req, res) => {
+  try {
+    const { userId, initData } = req.body;
+    
+    if (!initData) {
+      return res.status(400).json({
+        error: 'Missing initialization data',
+        message: 'Telegram WebApp initialization data is required'
+      });
+    }
+    
+    // Get the user info from the request (added by middleware)
+    const telegramUser = req.telegramUser;
+    
+    // Match the user ID from the request with the one from Telegram
+    if (telegramUser && telegramUser.id.toString() === userId.toString()) {
+      return res.json({
+        success: true,
+        user: {
+          id: telegramUser.id,
+          username: telegramUser.username || null,
+          first_name: telegramUser.first_name || null,
+          last_name: telegramUser.last_name || null
+        }
+      });
+    } else {
+      return res.status(403).json({
+        error: 'User validation failed',
+        message: 'The user ID does not match the authenticated Telegram user'
+      });
+    }
+  } catch (error) {
+    console.error('Error validating user session:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+}, telegramAuthMiddleware(false)); // Apply authentication middleware to this route
+
+// Apply authentication middleware to all API routes except debug route
+app.use('/api/debug', telegramAuthMiddleware(true)); // Skip auth for debug route
+app.use('/api', telegramAuthMiddleware(false)); // Require auth for all other API routes
 
 // 1. Fetch all ratings for a user with no pagination
 app.get('/api/ratings/user/:userId', async (req, res) => {
