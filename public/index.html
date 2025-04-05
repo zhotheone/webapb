@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Телеграм Веб Додаток</title>
+    
+    <!-- Import Telegram WebApp API -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Google Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- Material Design Components web -->
+    <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+    
+    <!-- FiraCode Font -->
+    <link href="https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css" rel="stylesheet">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header with user info -->
+        <header class="app-header">
+            <div class="user-avatar" id="userAvatar">
+                <span class="material-icons">person</span>
+            </div>
+            <div class="user-info">
+                <h2 id="userName">Завантаження...</h2>
+                <p id="userId" class="user-id">ID: ...</p>
+            </div>
+        </header>
+
+        <!-- Main content area -->
+        <main class="app-content">
+            <!-- Ratings Tab -->
+            <section class="tab-content" id="ratingsTab">
+                <div class="tab-header">
+                    <h1>Рейтинги 🎬</h1>
+                    <div class="subtabs">
+                        <button class="subtab-btn active" data-subtab="gallery">Галерея</button>
+                        <button class="subtab-btn" data-subtab="search">Пошук</button>
+                    </div>
+                </div>
+                
+                <!-- Gallery Subtab Section with Sort and Filter Controls -->
+                <div class="subtab-content active" id="galleryContent">
+                    <div class="gallery-controls">
+                        <div class="sort-controls">
+                            <div class="sort-control-group">
+                                <label for="sortField">Сортувати за:</label>
+                                <select id="sortField" class="sort-select">
+                                    <option value="timestamp">Дата додавання</option>
+                                    <option value="title">Назва</option>
+                                    <option value="release_date">Рік випуску</option>
+                                    <option value="userRating">Оцінка</option>
+                                </select>
+                            </div>
+                            <div class="sort-control-group">
+                                <label for="sortOrder">Порядок:</label>
+                                <select id="sortOrder" class="sort-select">
+                                    <option value="desc">За спаданням</option>
+                                    <option value="asc">За зростанням</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="filter-controls">
+                            <div class="filter-header">
+                                <h3>Фільтри <span id="filterBadge" class="filter-badge">Активні</span></h3>
+                                <button id="clearFiltersBtn" class="clear-filters-btn">
+                                    <span class="material-icons">close</span> Очистити
+                                </button>
+                            </div>
+                            
+                            <div class="filter-options">
+                                <div class="filter-option">
+                                    <select id="typeFilter" class="filter-select">
+                                        <option value="">Усі типи 🎭</option>
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                </div>
+                                
+                                <div class="filter-option">
+                                    <select id="yearFilter" class="filter-select">
+                                        <option value="">Усі роки 📅</option>
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                </div>
+                                
+                                <div class="filter-option">
+                                    <select id="ratingFilter" class="filter-select">
+                                        <option value="">Усі оцінки ⭐</option>
+                                        <!-- Options will be populated dynamically -->
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="media-grid" id="mediaGrid">
+                        <!-- Media cards will be populated here -->
+                        <div class="loading-spinner">
+                            <span class="material-icons rotating">refresh</span>
+                            <p>Завантаження...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Search Subtab -->
+                <div class="subtab-content" id="searchContent">
+                    <div class="search-container">
+                        <div class="search-input-container">
+                            <span class="material-icons search-icon">search</span>
+                            <input type="text" id="searchInput" placeholder="Пошук фільмів, серіалів...">
+                            <button id="searchClearBtn" class="search-clear-btn">
+                                <span class="material-icons">close</span>
+                            </button>
+                        </div>
+                        <div class="search-results" id="searchResults">
+                            <!-- Search results will be populated here -->
+                            <p class="search-prompt">Введіть назву для пошуку 🔍</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tracker Tab - Оновлений фрагмент HTML коду -->
+            <section class="tab-content hidden" id="trackerTab">
+                <div class="tab-header">
+                    <h1>Трекер цін 💰</h1>
+                    <p class="tab-description">Відстежуйте ціни на товари з Steam, Rozetka та Comfy</p>
+                </div>
+                <div class="tracker-content">
+                    <div class="tracker-input-container">
+                        <div class="tracker-input-wrapper">
+                            <span class="material-icons">link</span>
+                            <input type="text" id="trackerInput" placeholder="URL товару (Steam, Rozetka або Comfy)">
+                        </div>
+                        <button id="addTrackerBtn" class="add-tracker-btn" title="Додати товар">
+                            <span class="material-icons">add</span>
+                        </button>
+                    </div>
+                    
+                    <div class="tracker-filter">
+                        <div class="filter-group">
+                            <button class="tracker-filter-btn active" data-filter="all">Усі</button>
+                            <button class="tracker-filter-btn" data-filter="steam">Steam</button>
+                            <button class="tracker-filter-btn" data-filter="rozetka">Rozetka</button>
+                            <button class="tracker-filter-btn" data-filter="comfy">Comfy</button>
+                        </div>
+                        <div class="filter-group">
+                            <button class="tracker-filter-btn" data-filter="sale">Зі знижкою</button>
+                            <select id="trackerSort" class="tracker-sort-select">
+                                <option value="dateAdded_desc">Спочатку нові</option>
+                                <option value="dateAdded_asc">Спочатку старі</option>
+                                <option value="price_asc">Від дешевших</option>
+                                <option value="price_desc">Від дорожчих</option>
+                                <option value="salePercent_desc">Найбільша знижка</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="tracker-debug-info" style="display: none; margin-bottom: 10px; background-color: var(--overlay); padding: 8px; border-radius: var(--border-radius);">
+                        <h4>Інформація для налагодження:</h4>
+                        <p id="debugAPIUrl">API_URL: <span>-</span></p>
+                        <p id="debugItemsCount">Товарів завантажено: <span>0</span></p>
+                        <button id="debugRefreshBtn" class="custom-dialog-button primary" style="margin-top: 8px;">Оновити дані</button>
+                    </div>
+                    
+                    <div class="tracked-items" id="trackedItems">
+                        <!-- Tracked items will be populated here -->
+                        <div class="loading-spinner">
+                            <span class="material-icons rotating">refresh</span>
+                            <p>Завантаження відстежуваних товарів...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Weather Tab -->
+            <section class="tab-content hidden" id="weatherTab">
+                <div class="tab-header">
+                    <h1>Погода 🌤️</h1>
+                </div>
+                <div class="weather-content">
+                    <div class="weather-location">
+                        <span class="material-icons">location_on</span>
+                        <select id="weatherLocation" class="weather-location-select">
+                            <option value="Kyiv">Київ</option>
+                            <option value="Lviv">Львів</option>
+                            <option value="Odesa">Одеса</option>
+                            <option value="Kharkiv">Харків</option>
+                            <option value="Dnipro">Дніпро</option>
+                        </select>
+                    </div>
+                    <div class="weather-display" id="weatherDisplay">
+                        <div class="loading-spinner">
+                            <span class="material-icons rotating">refresh</span>
+                            <p>Завантаження погоди...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Currency Tab -->
+            <section class="tab-content hidden" id="currencyTab">
+                <div class="tab-header">
+                    <h1>Курси валют 💱</h1>
+                </div>
+                <div class="currency-content">
+                    <!-- Updated Currency Converter Structure -->
+                    <div class="currency-converter">
+                        <div class="currency-converter-row">
+                            <div class="currency-input-group">
+                                <label for="currencyAmount">Сума 💰</label>
+                                <div class="currency-input-wrapper">
+                                    <input type="number" id="currencyAmount" value="100" min="0">
+                                    <select id="currencyFrom">
+                                        <option value="UAH">₴ UAH</option>
+                                        <option value="USD">$ USD</option>
+                                        <option value="EUR">€ EUR</option>
+                                        <option value="GBP">£ GBP</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="currency-swap-container">
+                            <span class="material-icons currency-swap-icon" id="currencySwapBtn">swap_vert</span>
+                        </div>
+                        
+                        <div class="currency-converter-row">
+                            <div class="currency-input-group">
+                                <label for="currencyResult">Результат 🔄</label>
+                                <div class="currency-input-wrapper">
+                                    <input type="number" id="currencyResult" readonly>
+                                    <select id="currencyTo">
+                                        <option value="UAH">₴ UAH</option>
+                                        <option value="USD" selected>$ USD</option>
+                                        <option value="EUR">€ EUR</option>
+                                        <option value="GBP">£ GBP</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Currency Rates will be populated here with new grid structure -->
+                    <div class="currency-rates" id="currencyRates">
+                        <div class="loading-spinner">
+                            <span class="material-icons rotating">refresh</span>
+                            <p>Завантаження курсів...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Navigation Bar -->
+        <nav class="bottom-navbar">
+            <button class="nav-btn active" data-tab="ratingsTab">
+                <span class="material-icons">star</span>
+                <span class="nav-label">Рейтинги</span>
+            </button>
+            <button class="nav-btn" data-tab="trackerTab">
+                <span class="material-icons">price_change</span>
+                <span class="nav-label">Трекер</span>
+            </button>
+            <button class="nav-btn" data-tab="weatherTab">
+                <span class="material-icons">wb_sunny</span>
+                <span class="nav-label">Погода</span>
+            </button>
+            <button class="nav-btn" data-tab="currencyTab">
+                <span class="material-icons">currency_exchange</span>
+                <span class="nav-label">Валюта</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Scripts -->
+    <script src="scripts/config.js"></script>
+    <script src="scripts/app.js"></script>
+    <script src="scripts/ratings.js"></script>
+    <script src="scripts/tracker.js"></script>
+    <script src="scripts/weather.js"></script>
+    <script src="scripts/currency.js"></script>
+    <!-- Додатковий скрипт для налагодження -->
+    <script>
+        // Перемикання режиму налагодження (натисканням Alt+D)
+        document.addEventListener('keydown', function(e) {
+            if (e.altKey && e.key === 'd') {
+                const debugInfo = document.querySelector('.tracker-debug-info');
+                if (debugInfo) {
+                    debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
+                }
+            }
+        });
+        
+        // Оновлення при натисканні на кнопку в панелі налагодження
+        document.addEventListener('DOMContentLoaded', function() {
+            const debugRefreshBtn = document.getElementById('debugRefreshBtn');
+            if (debugRefreshBtn) {
+                debugRefreshBtn.addEventListener('click', function() {
+                    if (typeof loadTrackerItems === 'function') {
+                        loadTrackerItems();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
