@@ -81,12 +81,12 @@ async function loadUserCollection() {
         // Add query parameters
         const queryParams = [];
         
-        // Add sorting parameters (always include these for consistency)
+        // Add sorting parameters
         queryParams.push(`sortField=${encodeURIComponent(currentSort.field || 'timestamp')}`);
         queryParams.push(`sortOrder=${encodeURIComponent(currentSort.order || 'desc')}`);
         
-        // Log the sort parameters for debugging
-        console.log(`Sort parameters: field=${currentSort.field}, order=${currentSort.order}`);
+        // Log the API request for debugging
+        console.log("Fetching collection from:", API_CONFIG.getApiUrl(apiUrl + '?' + queryParams.join('&')));
         
         // Add filtering parameters if they exist
         if (currentFilter.type) {
@@ -161,6 +161,8 @@ async function loadUserCollection() {
 // Load available filter options
 async function loadFilterOptions() {
     try {
+        console.log("Fetching filter options from:", API_CONFIG.getApiUrl(`rate/filters/${currentUserId}`));
+        
         const response = await fetch(API_CONFIG.getApiUrl(`rate/filters/${currentUserId}`));
         
         if (!response.ok) {
@@ -171,9 +173,11 @@ async function loadFilterOptions() {
                 years: [],
                 ratings: []
             };
-        } else {
-            filterOptions = await response.json();
+            populateFilterOptions();
+            return;
         }
+        
+        filterOptions = await response.json();
         
         // Update the filter UI with available options
         populateFilterOptions();
