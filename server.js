@@ -12,13 +12,18 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Проміжне ПЗ - Fix CORS issues
+// Fix CORS issues - Make sure this comes BEFORE any routes are defined
 app.use(cors({
-  origin: '*', // Allow requests from any origin
+  origin: '*', // Allow all origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
+
+// Handle preflight requests for all routes
+app.options('*', cors());
+
+// Other middleware
 app.use(bodyParser.json());
 app.use(express.static('public')); // Обслуговування статичних файлів з директорії 'public'
 
