@@ -62,13 +62,41 @@ require('dotenv').config();
 // Import the Telegram authentication middleware
 const { telegramAuthMiddleware } = require('./middleware/telegramAuth');
 
+// Create Express app
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// IMPORTANT: Apply CORS first before any other middleware
-// Enhanced CORS configuration - moved higher to ensure it processes before other middleware
+// List of allowed origins for CORS
+// Add your GitHub Pages URL and any other domains that will access this API
+const allowedOrigins = [
+  'https://zhotheone.github.io',
+  'http://localhost:10000',
+  'http://localhost:3000',
+  'http://127.0.0.1:5500',
+  'http://127.0.0.1:3000'
+];
+
+// CORS configuration
 app.use(cors({
-  origin: '*', // Allow requests from any origin
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check if the origin is allowed
+    if (allowedOrigins.indexOf(origin) === -1) {
+      console.log(`CORS request from unauthorized origin: ${origin}`);
+      
+      // In production, be strict about origins
+      if (process.env.NODE_ENV === 'production') {
+        return callback(new Error('CORS policy: Origin not allowed'), false);
+      }
+      
+      // In development, allow all origins
+      console.log('Allowing request in development mode');
+    }
+    
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Telegram-Init-Data'],
   credentials: true,
@@ -76,8 +104,12 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
-// Other middleware
+// Handle preflight requests
+app.options('*', cors());
+
+// Body parsing middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 /**
  * Generate a stable product ID from URL
@@ -134,8 +166,22 @@ mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-  .then(() => console.log('Connected to MongoDB Atlas'))
-  .catch(err => console.error('MongoDB connection error:', err));
+.then(() => {
+  console.log('Connected to MongoDB Atlas');
+  
+  // Start Express server after successful DB connection
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`API URL: ${process.env.NODE_ENV === 'production' 
+      ? 'https://webapb.onrender.com/api' 
+      : `http://localhost:${PORT}/api`}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+})
+.catch(err => {
+  console.error('MongoDB connection error:', err);
+  process.exit(1); // Exit with error code
+});
 
 // Define Schemas
 const RatingSchema = new mongoose.Schema({
@@ -472,6 +518,27 @@ app.post('/api/ratings/add-rating', async (req, res) => {
   }
 });
 
+// Add a 3. Add a rating with detailed metadata using URL parameters, useful for simpler clients
+app.post('/api/ratings/add/:userId_imdbId_rating', async (req, res) => {
+  try {
+    const params = req.params.userId_imdbId_rating.split('_');
+    if (params.length !== 3) {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
+    
+    const [userId, imdbId, rating] = params;
+    
+    // Redirect to the JSON body method
+    req.body = { userId, imdbId, rating };
+    
+    // Forward to the JSON-based handler
+    return await require('./handlers/ratings').addRating(req, res);
+  } catch (error) {
+    console.error('Error in URL parameter rating:', error);
+    res.status(500).json({ error: 'Failed to add rating' });
+  }
+});
+
 // 4. Fetch all tracked products for a user
 app.get('/api/tracker/user/:userId', async (req, res) => {
   try {
@@ -568,7 +635,19 @@ app.get('/api/ratings/filter', async (req, res) => {
 // Add a tracked product with URL parsing
 app.post('/api/tracker/add', async (req, res) => {
   try {
-    const { userId, url } = req.body;
+    // Get user ID from the request body
+    let { userId, url } = req.body;
+    
+    // If Telegram authentication is available, use that user ID instead
+    if (req.telegramUser && req.telegramUser.id) {
+      // Log the discrepancy if there is one
+      if (userId !== req.telegramUser.id.toString()) {
+        console.log(`User ID mismatch: ${userId} in request body vs ${req.telegramUser.id} from authentication. Using authenticated ID.`);
+      }
+      
+      // Override with the authenticated user ID
+      userId = req.telegramUser.id.toString();
+    }
     
     if (!userId || !url) {
       return res.status(400).json({ error: 'User ID and URL are required' });
@@ -1434,9 +1513,30 @@ app.delete('/api/tracker/:id', async (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Server is accessible at http://localhost:${PORT}`);
-  console.log(`CORS enabled for all origins in development mode`);
+// Add route to check if the server is running
+app.get('/', (req, res) => {
+  res.send({
+    status: 'online',
+    message: 'Media Tracker API Server is running',
+    version: process.env.npm_package_version || '1.0',
+    environment: process.env.NODE_ENV || 'development',
+    time: new Date().toISOString()
+  });
+});
+
+// Handle 404 for any undefined routes
+app.use((req, res) => {
+  res.status(404).json({ 
+    error: 'Not Found', 
+    message: `The route ${req.method} ${req.path} does not exist`
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
+    details: process.env.NODE_ENV === 'production' ? undefined : err.stack
+  });
 });

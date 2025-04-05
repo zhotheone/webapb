@@ -77,6 +77,16 @@ function telegramAuthMiddleware(skipAuth = false) {
         // Skip authentication in development mode if configured
         if (process.env.SKIP_AUTH === 'true' && process.env.NODE_ENV === 'development') {
             console.log('Warning: Authentication check is skipped in development mode');
+            
+            // Set a consistent development user for testing
+            req.telegramUser = {
+                id: 594235906,
+                username: "dev_user",
+                first_name: "Dev",
+                last_name: "User"
+            };
+            
+            console.log('Using development fallback user ID:', req.telegramUser.id);
             return next();
         }
         
@@ -109,9 +119,32 @@ function telegramAuthMiddleware(skipAuth = false) {
             if (userDataStr) {
                 req.telegramUser = JSON.parse(decodeURIComponent(userDataStr));
                 console.log('Authenticated user:', req.telegramUser.id);
+            } else {
+                // If no user data found in production, this is an error
+                if (process.env.NODE_ENV !== 'development') {
+                    console.error('Error: No user data found in Telegram WebApp initData');
+                    return res.status(401).json({
+                        error: 'Authentication incomplete',
+                        message: 'User data not found in Telegram WebApp data'
+                    });
+                }
             }
         } catch (error) {
             console.error('Error parsing user data:', error);
+        }
+        
+        // If we still don't have a user in development mode, use a fallback
+        if (!req.telegramUser && (process.env.NODE_ENV === 'development' || 
+            req.headers.origin?.includes('localhost') || 
+            req.headers.host?.includes('localhost'))) {
+            
+            console.log('Using local development fallback user');
+            req.telegramUser = {
+                id: 594235906,
+                username: "dev_user",
+                first_name: "Dev",
+                last_name: "User"
+            };
         }
         
         // Continue to the next middleware
