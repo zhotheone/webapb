@@ -85,6 +85,9 @@ async function loadUserCollection() {
         queryParams.push(`sortField=${encodeURIComponent(currentSort.field || 'timestamp')}`);
         queryParams.push(`sortOrder=${encodeURIComponent(currentSort.order || 'desc')}`);
         
+        // Log the API request for debugging
+        console.log("Preparing to fetch collection with params:", queryParams.join('&'));
+        
         // Add filtering parameters if they exist
         if (currentFilter.type) {
             queryParams.push(`filterType=${encodeURIComponent(currentFilter.type)}`);
@@ -103,8 +106,14 @@ async function loadUserCollection() {
         
         console.log('Loading collection with URL:', apiUrl);
         
-        // Use our improved CORS-aware fetch wrapper
-        const data = await API_CONFIG.fetchWithCORS(apiUrl);
+        // Use our retry-capable fetch wrapper
+        const response = await fetch(API_CONFIG.getApiUrl(apiUrl));
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
         
         // Clear loading indicator
         mediaGrid.innerHTML = '';
@@ -136,6 +145,9 @@ async function loadUserCollection() {
                 <span class="material-icons">error_outline</span>
                 <p>Помилка завантаження колекції: ${error.message}</p>
                 <button id="retryCollectionBtn" class="button">Спробувати знову</button>
+                <div class="error-details">
+                    <small>API URL: ${API_CONFIG.API_BASE_URL}</small>
+                </div>
             </div>
         `;
         
@@ -154,10 +166,17 @@ async function loadUserCollection() {
 // Load available filter options
 async function loadFilterOptions() {
     try {
-        console.log(`Loading filter options for user: ${currentUserId}`);
+        const apiUrl = `rate/filters/${currentUserId}`;
+        console.log(`Loading filter options from: ${API_CONFIG.getApiUrl(apiUrl)}`);
         
-        // Use our improved CORS-aware fetch wrapper
-        filterOptions = await API_CONFIG.fetchWithCORS(`rate/filters/${currentUserId}`);
+        const response = await fetch(API_CONFIG.getApiUrl(apiUrl));
+        
+        if (!response.ok) {
+            throw new Error(`Filter options returned status: ${response.status}`);
+        }
+        
+        filterOptions = await response.json();
+        console.log("Filter options loaded:", filterOptions);
         
         // Update the filter UI with available options
         populateFilterOptions();
