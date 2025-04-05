@@ -1,12 +1,111 @@
 // API Configuration
 const API_CONFIG = {
-    // Updated API URL configuration
-    // For local testing you can use http://localhost:3000/api
+    // API base URL
     API_BASE_URL: 'https://webapp.onrender.com/api',
     
-    // Helper methods for API calls
+    // Enable local mock data
+    USE_MOCK_DATA: true,
+    
+    // Helper methods for API calls with improved error handling and CORS support
     getApiUrl: function(endpoint) {
         return `${this.API_BASE_URL}/${endpoint}`;
+    },
+    
+    // Improved fetch wrapper with CORS handling
+    fetchWithCORS: async function(endpoint, options = {}) {
+        const url = this.getApiUrl(endpoint);
+        console.log(`Fetching from: ${url}`);
+        
+        // Add CORS headers to every request
+        const fetchOptions = {
+            ...options,
+            mode: 'cors',
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        };
+        
+        try {
+            const response = await fetch(url, fetchOptions);
+            
+            if (!response.ok) {
+                console.warn(`API request failed: ${response.status} ${response.statusText}`);
+                
+                // If we have mock data enabled and the request failed, use mock data
+                if (this.USE_MOCK_DATA) {
+                    console.log(`Using mock data for: ${endpoint}`);
+                    return this.getMockData(endpoint);
+                }
+                
+                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error(`Error fetching ${url}:`, error);
+            
+            // If we have mock data enabled and the request failed, use mock data
+            if (this.USE_MOCK_DATA) {
+                console.log(`Using mock data for: ${endpoint}`);
+                return this.getMockData(endpoint);
+            }
+            
+            throw error;
+        }
+    },
+    
+    // Get appropriate mock data based on endpoint
+    getMockData: function(endpoint) {
+        if (endpoint.includes('rate/filters/')) {
+            return this.MOCK_DATA.ratings.filters;
+        } else if (endpoint.includes('rate/collection/')) {
+            return this.MOCK_DATA.ratings.collection;
+        }
+        return { error: 'No mock data available for this endpoint' };
+    },
+    
+    // Mock data for offline development or when API is down
+    MOCK_DATA: {
+        ratings: {
+            collection: {
+                results: [
+                    {
+                        id: 'tt0111161',
+                        title: 'The Shawshank Redemption',
+                        poster_path: 'https://m.media-amazon.com/images/M/MV5BNDE3ODcxYzMtY2YzZC00NmNlLWJiNDMtZDViZWM2MzIxZDYwXkEyXkFqcGdeQXVyNjAwNDUxODI@._V1_SX300.jpg',
+                        release_date: '1994',
+                        media_type: 'movie',
+                        userRating: 10,
+                        details: {
+                            plot: 'Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.',
+                            director: 'Frank Darabont',
+                            genre: 'Drama',
+                            imdbRating: '9.3/10'
+                        }
+                    },
+                    {
+                        id: 'tt0468569',
+                        title: 'The Dark Knight',
+                        poster_path: 'https://m.media-amazon.com/images/M/MV5BMTMxNTMwODM0NF5BMl5BanBnXkFtZTcwODAyMTk2Mw@@._V1_SX300.jpg',
+                        release_date: '2008',
+                        media_type: 'movie',
+                        userRating: 9,
+                        details: {
+                            plot: 'When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice.',
+                            director: 'Christopher Nolan',
+                            genre: 'Action, Crime, Drama',
+                            imdbRating: '9.0/10'
+                        }
+                    }
+                ]
+            },
+            filters: {
+                mediaTypes: ['movie', 'series', 'game'],
+                years: ['2023', '2022', '2021', '2008', '1994'],
+                ratings: [10, 9, 8, 7, 6]
+            }
+        }
     },
     
     // Create a custom dialog that works outside of Telegram

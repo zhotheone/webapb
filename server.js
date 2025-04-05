@@ -12,16 +12,34 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Fix CORS issues - Make sure this comes BEFORE any routes are defined
+// CORS Configuration - Apply this first before any routes
+app.use(function(req, res, next) {
+  // Set headers directly to ensure they're always present
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
+// Also use the cors middleware as a backup
 app.use(cors({
-  origin: '*', // Allow all origins
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true
 }));
 
-// Handle preflight requests for all routes
-app.options('*', cors());
+// Add a health check endpoint to test basic functionality
+app.get('/api/healthcheck', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Other middleware
 app.use(bodyParser.json());
