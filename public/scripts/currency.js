@@ -74,15 +74,8 @@ async function fetchExchangeRates() {
     `;
     
     try {
-        // Fetch exchange rates from API
-        const response = await fetch(API_CONFIG.getApiUrl('currency/available'));
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        // Store exchange rates globally
-        exchangeRates = await response.json();
+        // Fetch exchange rates using fetchWithCORS to avoid CORS issues
+        exchangeRates = await API_CONFIG.fetchWithCORS('currency/available');
         
         // Render exchange rates
         renderExchangeRates(exchangeRates);

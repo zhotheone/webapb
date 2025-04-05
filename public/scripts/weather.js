@@ -42,14 +42,8 @@ async function fetchWeatherData(location) {
     `;
     
     try {
-        // Fetch weather data from API
-        const response = await fetch(API_CONFIG.getApiUrl(`weather/${encodeURIComponent(location)}`));
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
+        // Use fetchWithCORS instead of direct fetch to avoid CORS issues
+        const data = await API_CONFIG.fetchWithCORS(`weather/${encodeURIComponent(location)}`);
         
         // Render weather data
         renderWeatherData(data);

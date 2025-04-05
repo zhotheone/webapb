@@ -214,18 +214,11 @@ async function fetchTrackedItems() {
     
     try {
         // Повний URL API для зрозумілого налагодження
-        const apiUrl = API_CONFIG.getApiUrl(`tracker/${currentUserId}`);
+        const apiUrl = `tracker/${currentUserId}`;
         debugAPI(`Виконуємо запит: GET ${apiUrl}`);
         
-        // Запит відстежуваних товарів з API
-        const response = await fetch(apiUrl);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        // Отримання відстежуваних товарів з API
-        const data = await response.json();
+        // Використовуємо fetchWithCORS замість fetch для уникнення CORS-помилок
+        const data = await API_CONFIG.fetchWithCORS(apiUrl);
         debugAPI(`Отримано ${data.length} товарів з API`);
         
         // Зберігаємо отримані дані
@@ -289,12 +282,12 @@ async function addTrackedItem() {
     debugAPI("Починаємо запит до API");
     
     try {
-        // Сформувати повний URL для API
-        const apiUrl = API_CONFIG.getApiUrl(`tracker/add`);
+        // Сформувати URL для API
+        const apiUrl = `tracker/add`;
         debugAPI(`Виконуємо запит: POST ${apiUrl}`);
         
-        // Виклик API для додавання відстежуваного товару
-        const response = await fetch(apiUrl, {
+        // Виклик API для додавання відстежуваного товару з використанням fetchWithCORS
+        const data = await API_CONFIG.fetchWithCORS(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -304,22 +297,6 @@ async function addTrackedItem() {
                 url: url
             })
         });
-        
-        const responseText = await response.text();
-        debugAPI(`Відповідь API (текст): ${responseText}`);
-        
-        let data;
-        try {
-            // Спробувати розпарсити як JSON
-            data = JSON.parse(responseText);
-        } catch (jsonError) {
-            debugAPI(`Помилка парсингу JSON: ${jsonError.message}`);
-            throw new Error(`Неправильний формат відповіді: ${responseText}`);
-        }
-        
-        if (!response.ok) {
-            throw new Error(data.error || `Помилка HTTP: ${response.status}`);
-        }
         
         debugAPI(`Успішна відповідь від API: ${JSON.stringify(data)}`);
         
@@ -387,7 +364,7 @@ async function addItemThatIsAlreadyOnSale(url) {
         // Показати спінер завантаження
         API_CONFIG.showToast('Додаємо товар...');
         
-        const response = await fetch(API_CONFIG.getApiUrl(`tracker/add/force`), {
+        const data = await API_CONFIG.fetchWithCORS(`tracker/add/force`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -397,13 +374,6 @@ async function addItemThatIsAlreadyOnSale(url) {
                 url: url
             })
         });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Не вдалося додати товар для відстеження');
-        }
-        
-        const data = await response.json();
         
         // Додати новий товар до відстежуваних
         trackedItems.push(data);
@@ -629,17 +599,10 @@ async function removeTrackedItem(itemId) {
             API_CONFIG.showToast('Видаляємо...');
             
             try {
-                // Виклик API для видалення відстежуваного товару
-                const response = await fetch(API_CONFIG.getApiUrl(`tracker/remove/${currentUserId}/${itemId}`), {
+                // Виклик API для видалення відстежуваного товару з використанням fetchWithCORS
+                const data = await API_CONFIG.fetchWithCORS(`tracker/remove/${currentUserId}/${itemId}`, {
                     method: 'DELETE'
                 });
-                
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Не вдалося видалити відстежуваний товар');
-                }
-                
-                const data = await response.json();
                 
                 if (data.success) {
                     // Видалити товар з локальних даних

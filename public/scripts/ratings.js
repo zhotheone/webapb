@@ -106,14 +106,8 @@ async function loadUserCollection() {
         
         console.log('Loading collection with URL:', apiUrl);
         
-        // Use our retry-capable fetch wrapper
-        const response = await fetch(API_CONFIG.getApiUrl(apiUrl));
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
+        // Use fetchWithCORS instead of direct fetch to avoid CORS issues
+        const data = await API_CONFIG.fetchWithCORS(apiUrl);
         
         // Clear loading indicator
         mediaGrid.innerHTML = '';
@@ -169,13 +163,8 @@ async function loadFilterOptions() {
         const apiUrl = `rate/filters/${currentUserId}`;
         console.log(`Loading filter options from: ${API_CONFIG.getApiUrl(apiUrl)}`);
         
-        const response = await fetch(API_CONFIG.getApiUrl(apiUrl));
-        
-        if (!response.ok) {
-            throw new Error(`Filter options returned status: ${response.status}`);
-        }
-        
-        filterOptions = await response.json();
+        // Use fetchWithCORS for consistent CORS handling
+        filterOptions = await API_CONFIG.fetchWithCORS(apiUrl);
         console.log("Filter options loaded:", filterOptions);
         
         // Update the filter UI with available options
@@ -356,14 +345,8 @@ async function performSearch(query) {
     `;
     
     try {
-        // Fetch search results from API
-        const response = await fetch(API_CONFIG.getApiUrl(`rate/search/${encodeURIComponent(query)}`));
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
+        // Fetch search results using fetchWithCORS
+        const data = await API_CONFIG.fetchWithCORS(`rate/search/${encodeURIComponent(query)}`);
         
         if (data.results && data.results.length > 0) {
             searchResults.innerHTML = '';
@@ -597,15 +580,7 @@ async function addMediaRating(item, rating) {
         
         // Using direct parameter embedding to avoid parsing issues
         const apiUrl = `rate/add/${currentUserId}_${imdbId}_${ratingValue}`;
-        const response = await fetch(API_CONFIG.getApiUrl(apiUrl));
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error(`API Error details:`, errorData);
-            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
+        const data = await API_CONFIG.fetchWithCORS(apiUrl);
         
         if (data.success) {
             // Update local data if needed
@@ -651,16 +626,10 @@ async function deleteMediaRating(item) {
             API_CONFIG.showToast('Видаляємо...');
             
             try {
-                // Call API to remove rating
-                const response = await fetch(API_CONFIG.getApiUrl(`rate/remove/${currentUserId}/${item.id}`), {
+                // Call API to remove rating using fetchWithCORS
+                const data = await API_CONFIG.fetchWithCORS(`rate/remove/${currentUserId}/${item.id}`, {
                     method: 'DELETE'
                 });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
                 
                 if (data.success) {
                     // Remove item from local data
