@@ -4,6 +4,7 @@ let currentPage = 1;
 const itemsPerPage = 12;
 let isLoading = false;
 let hasMoreItems = true;
+let currentUserId = null;
 
 // Sorting and filtering state
 let currentSort = {
