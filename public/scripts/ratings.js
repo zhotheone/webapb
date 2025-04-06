@@ -4,7 +4,6 @@ let currentPage = 1;
 const itemsPerPage = 12;
 let isLoading = false;
 let hasMoreItems = true;
-let currentUserId = ''; // This will be set from Telegram WebApp user
 
 // Sorting and filtering state
 let currentSort = {

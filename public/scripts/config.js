@@ -64,50 +64,7 @@ const API_CONFIG = {
         }
         return { error: 'No mock data available for this endpoint' };
     },
-    
-    // Mock data for offline development or when API is down
-    MOCK_DATA: {
-        ratings: {
-            collection: {
-                results: [
-                    {
-                        id: 'tt0111161',
-                        title: 'The Shawshank Redemption',
-                        poster_path: 'https://m.media-amazon.com/images/M/MV5BNDE3ODcxYzMtY2YzZC00NmNlLWJiNDMtZDViZWM2MzIxZDYwXkEyXkFqcGdeQXVyNjAwNDUxODI@._V1_SX300.jpg',
-                        release_date: '1994',
-                        media_type: 'movie',
-                        userRating: 10,
-                        details: {
-                            plot: 'Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.',
-                            director: 'Frank Darabont',
-                            genre: 'Drama',
-                            imdbRating: '9.3/10'
-                        }
-                    },
-                    {
-                        id: 'tt0468569',
-                        title: 'The Dark Knight',
-                        poster_path: 'https://m.media-amazon.com/images/M/MV5BMTMxNTMwODM0NF5BMl5BanBnXkFtZTcwODAyMTk2Mw@@._V1_SX300.jpg',
-                        release_date: '2008',
-                        media_type: 'movie',
-                        userRating: 9,
-                        details: {
-                            plot: 'When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice.',
-                            director: 'Christopher Nolan',
-                            genre: 'Action, Crime, Drama',
-                            imdbRating: '9.0/10'
-                        }
-                    }
-                ]
-            },
-            filters: {
-                mediaTypes: ['movie', 'series', 'game'],
-                years: ['2023', '2022', '2021', '2008', '1994'],
-                ratings: [10, 9, 8, 7, 6]
-            }
-        }
-    },
-    
+        
     // Create a custom dialog that works outside of Telegram
     showCustomDialog: function(options, callback) {
         // First check if Telegram WebApp popup is available
