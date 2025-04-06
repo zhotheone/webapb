@@ -207,5 +207,37 @@ const API_CONFIG = {
     }
 };
 
+// Add this to your config.js file or create a new utils.js file
+
+// Utility functions for working with images
+const IMAGE_UTILS = {
+    // Use our proxy for external images to avoid CORS issues
+    getProxiedImageUrl: function(originalUrl) {
+        if (!originalUrl) return null;
+        
+        // Don't proxy local images or placeholder images
+        if (originalUrl.startsWith('/') || originalUrl.includes('placeholder')) {
+            return originalUrl;
+        }
+        
+        // Return the proxied URL
+        return `/api/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+    },
+    
+    // Create image HTML with proper error handling
+    createImageElement: function(src, alt, className = '') {
+        if (!src) return '';
+        
+        // Use the proxied URL for external images
+        const proxiedSrc = this.getProxiedImageUrl(src);
+        
+        // Generate proper HTML with fallback
+        return `<img src="${proxiedSrc}" alt="${alt || 'Image'}" class="${className}" 
+            onerror="this.onerror=null; this.src=''; this.style.display='none'; this.parentNode.innerHTML+='<span class=\\'material-icons\\' style=\\'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 36px; color: rgba(255,255,255,0.7);\\'>image_not_supported</span>';">`;
+    }
+};
+
+// Add to window object if needed
+window.IMAGE_UTILS = IMAGE_UTILS;
 // Export the config
 window.API_CONFIG = API_CONFIG;

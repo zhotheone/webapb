@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Setup subtab navigation
     setupSubtabNavigation();
+
+    setupBooksTabNavigation();
     
     // Trigger active tab to load its content
     const activeTab = document.querySelector('.nav-btn.active');
@@ -132,6 +134,50 @@ function setupSubtabNavigation() {
             const subtabContent = document.getElementById(subtabId + 'Content');
             if (subtabContent) {
                 subtabContent.classList.add('active');
+            }
+        });
+    });
+}
+
+function setupBooksTabNavigation() {
+    const bookTabButtons = document.querySelectorAll('.books-tab-btn');
+    
+    bookTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Get parent container
+            const booksContent = document.getElementById('booksContent');
+            if (!booksContent) return;
+            
+            // Find all book tab buttons and sections
+            const siblingButtons = booksContent.querySelectorAll('.books-tab-btn');
+            const bookSections = booksContent.querySelectorAll('.books-section');
+            
+            // Remove active class from all buttons and sections
+            siblingButtons.forEach(btn => btn.classList.remove('active'));
+            bookSections.forEach(section => section.classList.remove('active'));
+            
+            // Add active class to clicked button and corresponding section
+            button.classList.add('active');
+            const bookTabId = button.getAttribute('data-booktab');
+            
+            let sectionId;
+            switch(bookTabId) {
+                case 'collection':
+                    sectionId = 'bookCollectionSection';
+                    break;
+                case 'search':
+                    sectionId = 'bookSearchSection';
+                    break;
+                case 'stats':
+                    sectionId = 'bookStatsSection';
+                    break;
+                default:
+                    sectionId = 'bookCollectionSection';
+            }
+            
+            const bookSection = document.getElementById(sectionId);
+            if (bookSection) {
+                bookSection.classList.add('active');
             }
         });
     });

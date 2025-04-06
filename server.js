@@ -1205,6 +1205,720 @@ app.delete('/api/tracker/remove/:userId/:itemId', async (req, res) => {
     }
 });
 
+// Image proxy endpoint to handle CORS issues with external images
+app.get('/api/image-proxy', async (req, res) => {
+    try {
+        const imageUrl = req.query.url;
+        
+        if (!imageUrl) {
+            return res.status(400).json({ error: 'URL parameter is required' });
+        }
+        
+        // Validate the URL (optional - for security)
+        try {
+            new URL(imageUrl);
+        } catch (error) {
+            return res.status(400).json({ error: 'Invalid URL format' });
+        }
+        
+        // Whitelist domains for security (add more as needed)
+        const allowedDomains = [
+            'm.media-amazon.com',
+            'image.tmdb.org',
+            'images-na.ssl-images-amazon.com'
+        ];
+        
+        const urlObj = new URL(imageUrl);
+        const domain = urlObj.hostname;
+        
+        if (!allowedDomains.some(allowed => domain.includes(allowed))) {
+            return res.status(403).json({ 
+                error: 'Domain not in whitelist',
+                message: `The domain ${domain} is not in the allowed domains list`
+            });
+        }
+        
+        console.log(`Proxying image from: ${imageUrl}`);
+        
+        // Get the image and pipe it through
+        const response = await axios({
+            method: 'GET',
+            url: imageUrl,
+            responseType: 'stream',
+            validateStatus: (status) => status < 500 // Accept 404 responses
+        });
+
+        if (response.status === 404) {
+            return res.status(404).json({ error: 'Image not found' });
+        }
+        
+        // Set appropriate headers
+        res.set('Content-Type', response.headers['content-type']);
+        res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+        
+        // Pipe the image data to the response
+        response.data.pipe(res);
+        
+    } catch (error) {
+        console.error('Image proxy error:', error);
+        
+        // If the response has already been sent, don't try to send another
+        if (!res.headersSent) {
+            res.status(500).json({ 
+                error: 'Failed to retrieve image',
+                details: error.message
+            });
+        }
+    }
+});
+
+// Book API Endpoints
+// To be added to server.js
+
+// API key for Google Books
+const GOOGLE_BOOKS_API_KEY = process.env.GOOGLE_BOOKS_API_KEY || 'YOUR_API_KEY';
+
+// Book Search Endpoint
+app.get('/api/books/search/:query', async (req, res) => {
+    try {
+        const query = req.params.query;
+        const response = await axios.get(
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&key=${GOOGLE_BOOKS_API_KEY}`
+        );
+        
+        if (!response.data.items || response.data.items.length === 0) {
+            return res.status(404).json({ error: 'Результатів не знайдено' });
+        }
+        
+        // Transform data to match our format
+        const results = response.data.items.map(item => ({
+            id: item.id,
+            title: item.volumeInfo.title,
+            authors: item.volumeInfo.authors || ['Невідомий автор'],
+            publisher: item.volumeInfo.publisher || 'Невідомо',
+            publishedDate: item.volumeInfo.publishedDate || 'Невідомо',
+            description: item.volumeInfo.description || 'Опис відсутній',
+            pageCount: item.volumeInfo.pageCount || 0,
+            categories: item.volumeInfo.categories || ['Невідомо'],
+            language: item.volumeInfo.language || 'uk',
+            image: item.volumeInfo.imageLinks ? 
+                (item.volumeInfo.imageLinks.thumbnail || item.volumeInfo.imageLinks.smallThumbnail) : 
+                null,
+            type: item.volumeInfo.categories && 
+                  item.volumeInfo.categories.some(cat => 
+                    cat.toLowerCase().includes('manga') || 
+                    cat.toLowerCase().includes('comic')
+                  ) ? 'manga' : 'book',
+            infoLink: item.volumeInfo.infoLink || null,
+            averageRating: item.volumeInfo.averageRating || null
+        }));
+        
+        res.json({ results });
+    } catch (error) {
+        console.error('Помилка пошуку книг:', error);
+        res.status(500).json({ error: 'Не вдалося отримати результати пошуку книг' });
+    }
+});
+
+// Get Book Collection for User
+app.get('/api/books/collection/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        
+        // Parse sorting options
+        const sortOrderParam = req.query.sortOrder;
+        let sortOrder = 1; // Ascending by default
+        
+        if (sortOrderParam === 'desc') {
+            sortOrder = -1;
+        }
+        
+        console.log(`Запит колекції книг - sortOrder: ${sortOrderParam} (${sortOrder}), sortField: ${req.query.sortField || 'timestamp'}`);
+        
+        const sortField = req.query.sortField || 'timestamp';
+        const filterType = req.query.filterType; // 'book', 'manga'
+        const filterYear = req.query.filterYear; // Filter by publication year
+        const filterRating = req.query.filterRating ? parseInt(req.query.filterRating) : null; // Filter by user rating
+        const filterAuthor = req.query.filterAuthor; // Filter by author
+        const filterCategory = req.query.filterCategory; // Filter by category
+        const filterLanguage = req.query.filterLanguage; // Filter by language
+        
+        // Query preparation
+        const query = { userId };
+        
+        // Get all books for this user
+        const booksCollection = db.collection('book_ratings');
+        let ratings;
+        
+        if (filterRating) {
+            ratings = await booksCollection
+                .find({ userId, rating: filterRating })
+                .sort({ [sortField]: sortOrder })
+                .toArray();
+        } else {
+            ratings = await booksCollection
+                .find(query)
+                .sort({ [sortField]: sortOrder })
+                .toArray();
+        }
+        
+        console.log(`Знайдено ${ratings.length} книжкових рейтингів для користувача ${userId}`);
+            
+        // Get full book info for each rating
+        let results = await Promise.all(ratings.map(async (rating) => {
+            // Check if we have book info cached in our books collection
+            let bookInfo = await db.collection('books').findOne({ bookId: rating.bookId });
+            
+            // If not found in our cache, get it from Google Books
+            if (!bookInfo) {
+                try {
+                    const response = await axios.get(
+                        `https://www.googleapis.com/books/v1/volumes/${rating.bookId}?key=${GOOGLE_BOOKS_API_KEY}`
+                    );
+                    
+                    if (response.data) {
+                        const item = response.data;
+                        bookInfo = {
+                            bookId: item.id,
+                            title: item.volumeInfo.title,
+                            authors: item.volumeInfo.authors || ['Невідомий автор'],
+                            publisher: item.volumeInfo.publisher || 'Невідомо',
+                            publishedDate: item.volumeInfo.publishedDate || 'Невідомо',
+                            description: item.volumeInfo.description || 'Опис відсутній',
+                            pageCount: item.volumeInfo.pageCount || 0,
+                            categories: item.volumeInfo.categories || ['Невідомо'],
+                            language: item.volumeInfo.language || 'uk',
+                            image: item.volumeInfo.imageLinks ? 
+                                (item.volumeInfo.imageLinks.thumbnail || item.volumeInfo.imageLinks.smallThumbnail) : 
+                                null,
+                            type: item.volumeInfo.categories && 
+                                  item.volumeInfo.categories.some(cat => 
+                                    cat.toLowerCase().includes('manga') || 
+                                    cat.toLowerCase().includes('comic')
+                                  ) ? 'manga' : 'book',
+                            infoLink: item.volumeInfo.infoLink || null,
+                            averageRating: item.volumeInfo.averageRating || null
+                        };
+                        
+                        // Cache book info
+                        await db.collection('books').insertOne(bookInfo);
+                    }
+                } catch (error) {
+                    console.error(`Помилка отримання книги ${rating.bookId}:`, error);
+                }
+            }
+            
+            // Extract year from publishedDate (assuming format YYYY or YYYY-MM-DD)
+            let publicationYear = null;
+            if (bookInfo?.publishedDate) {
+                const match = bookInfo.publishedDate.match(/^(\d{4})/);
+                if (match) {
+                    publicationYear = match[1];
+                }
+            }
+            
+            return {
+                id: rating.bookId,
+                title: bookInfo?.title || 'Невідома назва',
+                authors: bookInfo?.authors || ['Невідомий автор'],
+                publisher: bookInfo?.publisher || 'Невідомо',
+                publishedDate: bookInfo?.publishedDate || 'Невідомо',
+                publicationYear,
+                description: bookInfo?.description || 'Опис відсутній',
+                pageCount: bookInfo?.pageCount || 0,
+                categories: bookInfo?.categories || ['Невідомо'],
+                language: bookInfo?.language || 'uk',
+                image: bookInfo?.image || null,
+                type: bookInfo?.type || 'book',
+                infoLink: bookInfo?.infoLink || null,
+                userRating: rating.rating,
+                userReview: rating.review || '',  // Include the user's review
+                timestamp: rating.timestamp,
+                readingStatus: rating.readingStatus || 'finished', // 'reading', 'to-read', 'finished'
+                notes: rating.notes || '',
+                details: {
+                    description: bookInfo?.description || 'Опис відсутній',
+                    pageCount: bookInfo?.pageCount || 0,
+                    publisher: bookInfo?.publisher || 'Невідомо',
+                    categories: bookInfo?.categories || ['Невідомо'],
+                    language: bookInfo?.language || 'uk',
+                    averageRating: bookInfo?.averageRating || 'Немає оцінок'
+                }
+            };
+        }));
+        
+        // Apply additional filters after getting book info
+        if (filterType) {
+            results = results.filter(item => 
+                item.type && item.type.toLowerCase() === filterType.toLowerCase()
+            );
+        }
+        
+        if (filterYear) {
+            results = results.filter(item => 
+                item.publicationYear && item.publicationYear === filterYear
+            );
+        }
+        
+        if (filterAuthor) {
+            results = results.filter(item => 
+                item.authors && item.authors.some(author => 
+                    author.toLowerCase().includes(filterAuthor.toLowerCase())
+                )
+            );
+        }
+        
+        if (filterCategory) {
+            results = results.filter(item => 
+                item.categories && item.categories.some(category => 
+                    category.toLowerCase().includes(filterCategory.toLowerCase())
+                )
+            );
+        }
+        
+        if (filterLanguage) {
+            results = results.filter(item => 
+                item.language && item.language.toLowerCase() === filterLanguage.toLowerCase()
+            );
+        }
+        
+        // Manual sorting for some fields that weren't in MongoDB query
+        if (['title', 'publishedDate', 'userRating', 'authors'].includes(sortField)) {
+            results.sort((a, b) => {
+                // Handle missing values
+                if (!a[sortField] && !b[sortField]) return 0;
+                if (!a[sortField]) return sortOrder;
+                if (!b[sortField]) return -sortOrder;
+                
+                // Special handling for authors array
+                if (sortField === 'authors') {
+                    const authorA = a.authors[0] || '';
+                    const authorB = b.authors[0] || '';
+                    return sortOrder * authorA.localeCompare(authorB);
+                }
+                
+                // String comparison (case-insensitive)
+                if (typeof a[sortField] === 'string' && typeof b[sortField] === 'string') {
+                    return sortOrder * a[sortField].localeCompare(b[sortField]);
+                }
+                
+                // Numeric comparison
+                if (a[sortField] < b[sortField]) return -sortOrder;
+                if (a[sortField] > b[sortField]) return sortOrder;
+                return 0;
+            });
+        }
+        
+        res.json({ results });
+    } catch (error) {
+        console.error('Помилка отримання колекції книг користувача:', error);
+        res.status(500).json({ error: 'Не вдалося отримати колекцію книг користувача', details: error.message });
+    }
+});
+
+app.post('/api/books/rate', async (req, res) => {
+    try {
+        const { userId, bookId, rating, readingStatus, notes, review } = req.body;
+        
+        if (!userId || !bookId) {
+            return res.status(400).json({ 
+                error: 'Необхідно вказати userId та bookId',
+                details: 'Відсутні обов\'язкові параметри'
+            });
+        }
+        
+        // Validate rating
+        const ratingValue = parseFloat(rating);
+        if (rating !== undefined && (isNaN(ratingValue) || ratingValue < 0 || ratingValue > 10)) {
+            return res.status(400).json({ 
+                error: 'Неправильний рейтинг. Має бути число від 0 до 10.',
+                details: `Отримано: ${rating}, розпізнано як: ${ratingValue}`
+            });
+        }
+        
+        // Validate reading status
+        const validStatuses = ['reading', 'to-read', 'finished'];
+        if (readingStatus && !validStatuses.includes(readingStatus)) {
+            return res.status(400).json({ 
+                error: 'Неправильний статус читання',
+                details: `Отримано: ${readingStatus}. Допустимі значення: ${validStatuses.join(', ')}`
+            });
+        }
+        
+        // Validate review length if provided
+        if (review && review.length > 2000) {
+            return res.status(400).json({ 
+                error: 'Рецензія занадто довга',
+                details: 'Максимальна довжина рецензії - 2000 символів'
+            });
+        }
+        
+        console.log(`Додавання/оновлення книги: userId=${userId}, bookId=${bookId}, rating=${ratingValue}, status=${readingStatus}, review=${review ? 'Так' : 'Ні'}`);
+        
+        // Get book information from Google Books
+        try {
+            const bookResponse = await axios.get(
+                `https://www.googleapis.com/books/v1/volumes/${bookId}?key=${GOOGLE_BOOKS_API_KEY}`
+            );
+            
+            if (!bookResponse.data) {
+                return res.status(404).json({ 
+                    error: 'Книгу не знайдено', 
+                    details: 'Google Books API не знайшло книгу'
+                });
+            }
+            
+            // Store book info in our cache
+            const item = bookResponse.data;
+            const bookInfo = {
+                bookId: item.id,
+                title: item.volumeInfo.title,
+                authors: item.volumeInfo.authors || ['Невідомий автор'],
+                publisher: item.volumeInfo.publisher || 'Невідомо',
+                publishedDate: item.volumeInfo.publishedDate || 'Невідомо',
+                description: item.volumeInfo.description || 'Опис відсутній',
+                pageCount: item.volumeInfo.pageCount || 0,
+                categories: item.volumeInfo.categories || ['Невідомо'],
+                language: item.volumeInfo.language || 'uk',
+                image: item.volumeInfo.imageLinks ? 
+                    (item.volumeInfo.imageLinks.thumbnail || item.volumeInfo.imageLinks.smallThumbnail) : 
+                    null,
+                type: item.volumeInfo.categories && 
+                      item.volumeInfo.categories.some(cat => 
+                        cat.toLowerCase().includes('manga') || 
+                        cat.toLowerCase().includes('comic')
+                      ) ? 'manga' : 'book',
+                infoLink: item.volumeInfo.infoLink || null,
+                averageRating: item.volumeInfo.averageRating || null
+            };
+            
+            // Check if we already have this book in cache
+            const existingBook = await db.collection('books').findOne({ bookId });
+            
+            if (!existingBook) {
+                await db.collection('books').insertOne(bookInfo);
+            } else {
+                // Update existing book info
+                await db.collection('books').updateOne(
+                    { bookId },
+                    { $set: bookInfo }
+                );
+            }
+            
+            // Check if user already rated this book
+            const existingRating = await db.collection('book_ratings').findOne({ userId, bookId });
+            
+            const updateData = {
+                timestamp: new Date()
+            };
+            
+            // Only add fields that are provided
+            if (rating !== undefined) updateData.rating = ratingValue;
+            if (readingStatus) updateData.readingStatus = readingStatus;
+            if (notes !== undefined) updateData.notes = notes;
+            if (review !== undefined) updateData.review = review;
+            
+            if (existingRating) {
+                // Update existing rating
+                await db.collection('book_ratings').updateOne(
+                    { userId, bookId },
+                    { $set: updateData }
+                );
+            } else {
+                // Add new rating
+                await db.collection('book_ratings').insertOne({
+                    userId,
+                    bookId,
+                    rating: rating !== undefined ? ratingValue : null,
+                    readingStatus: readingStatus || 'finished',
+                    notes: notes || '',
+                    review: review || '',
+                    timestamp: new Date()
+                });
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Оцінку та рецензію успішно додано',
+                bookInfo: {
+                    id: bookId,
+                    title: bookInfo.title,
+                    authors: bookInfo.authors,
+                    publishedDate: bookInfo.publishedDate,
+                    image: bookInfo.image,
+                    type: bookInfo.type,
+                    averageRating: bookInfo.averageRating,
+                    userRating: rating !== undefined ? ratingValue : null,
+                    readingStatus: readingStatus || 'finished',
+                    notes: notes || '',
+                    review: review || ''
+                }
+            });
+        } catch (error) {
+            console.error('Помилка Google Books API:', error);
+            res.status(500).json({ 
+                error: 'Не вдалося отримати інформацію про книгу', 
+                details: error.message 
+            });
+        }
+    } catch (error) {
+        console.error('Помилка додавання/оновлення оцінки книги:', error);
+        res.status(500).json({ 
+            error: 'Не вдалося додати/оновити оцінку книги', 
+            details: error.message 
+        });
+    }
+});
+
+// Remove Book Rating
+app.delete('/api/books/remove/:userId/:bookId', async (req, res) => {
+    try {
+        const { userId, bookId } = req.params;
+        
+        // Delete the rating
+        const result = await db.collection('book_ratings').deleteOne({ userId, bookId });
+        
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: 'Оцінку книги не знайдено' });
+        }
+        
+        res.json({ success: true, message: 'Оцінку книги успішно видалено' });
+    } catch (error) {
+        console.error('Помилка видалення оцінки книги:', error);
+        res.status(500).json({ error: 'Не вдалося видалити оцінку книги' });
+    }
+});
+
+// Get Book Filter Options
+app.get('/api/books/filters/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        
+        // Get all book ratings for this user
+        const ratings = await db.collection('book_ratings')
+            .find({ userId })
+            .toArray();
+            
+        if (ratings.length === 0) {
+            return res.json({
+                types: [],
+                years: [],
+                ratings: [],
+                authors: [],
+                categories: [],
+                languages: []
+            });
+        }
+        
+        // Get bookIds from all ratings
+        const bookIds = ratings.map(rating => rating.bookId);
+        
+        // Get information about all rated books
+        const books = await db.collection('books')
+            .find({ bookId: { $in: bookIds } })
+            .toArray();
+            
+        // Extract unique values
+        const types = [...new Set(books.map(book => book.type))].filter(Boolean);
+        
+        // Extract years from publishedDate
+        const years = [...new Set(books
+            .map(book => {
+                if (!book.publishedDate) return null;
+                const match = book.publishedDate.match(/^(\d{4})/);
+                return match ? match[1] : null;
+            })
+            .filter(Boolean))];
+        
+        // Extract unique user ratings
+        const userRatings = [...new Set(ratings
+            .map(item => item.rating)
+            .filter(rating => rating !== null && rating !== undefined))];
+        
+        // Extract unique authors (flattened from author arrays)
+        const allAuthors = books.flatMap(book => book.authors || []).filter(Boolean);
+        const authors = [...new Set(allAuthors)];
+        
+        // Extract unique categories (flattened from category arrays)
+        const allCategories = books.flatMap(book => book.categories || []).filter(Boolean);
+        const categories = [...new Set(allCategories)];
+        
+        // Extract unique languages
+        const languages = [...new Set(books.map(book => book.language))].filter(Boolean);
+        
+        res.json({
+            types,
+            years: years.sort((a, b) => b - a), // Newest first
+            ratings: userRatings.sort((a, b) => b - a), // Highest first
+            authors: authors.sort(),
+            categories: categories.sort(),
+            languages
+        });
+    } catch (error) {
+        console.error('Помилка отримання параметрів фільтрації книг:', error);
+        res.status(500).json({ error: 'Не вдалося отримати параметри фільтрації книг' });
+    }
+});
+
+// Update Reading Status
+app.put('/api/books/status/:userId/:bookId', async (req, res) => {
+    try {
+        const { userId, bookId } = req.params;
+        const { readingStatus, currentPage, notes } = req.body;
+        
+        // Validate reading status
+        const validStatuses = ['reading', 'to-read', 'finished'];
+        if (!validStatuses.includes(readingStatus)) {
+            return res.status(400).json({ 
+                error: 'Неправильний статус читання',
+                details: `Отримано: ${readingStatus}. Допустимі значення: ${validStatuses.join(', ')}`
+            });
+        }
+        
+        // Check if user has this book in their collection
+        const existingRating = await db.collection('book_ratings').findOne({ userId, bookId });
+        
+        if (!existingRating) {
+            return res.status(404).json({ error: 'Книгу не знайдено в колекції користувача' });
+        }
+        
+        // Update fields
+        const updateData = {
+            readingStatus,
+            timestamp: new Date() // Update timestamp when status changes
+        };
+        
+        // Add optional fields if provided
+        if (currentPage !== undefined) updateData.currentPage = currentPage;
+        if (notes !== undefined) updateData.notes = notes;
+        
+        // Update the document
+        await db.collection('book_ratings').updateOne(
+            { userId, bookId },
+            { $set: updateData }
+        );
+        
+        res.json({ 
+            success: true, 
+            message: 'Статус читання успішно оновлено',
+            readingStatus,
+            currentPage,
+            notes
+        });
+    } catch (error) {
+        console.error('Помилка оновлення статусу читання:', error);
+        res.status(500).json({ error: 'Не вдалося оновити статус читання' });
+    }
+});
+
+// Get Book Statistics for User Dashboard
+app.get('/api/books/stats/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        
+        // Get all book ratings for this user
+        const ratings = await db.collection('book_ratings')
+            .find({ userId })
+            .toArray();
+            
+        if (ratings.length === 0) {
+            return res.json({
+                totalBooks: 0,
+                booksRead: 0,
+                booksReading: 0,
+                booksToRead: 0,
+                totalPages: 0,
+                averageRating: 0,
+                favoriteCategories: [],
+                favoriteAuthors: []
+            });
+        }
+        
+        // Get bookIds from all ratings
+        const bookIds = ratings.map(rating => rating.bookId);
+        
+        // Get information about all rated books
+        const books = await db.collection('books')
+            .find({ bookId: { $in: bookIds } })
+            .toArray();
+        
+        // Create a map for quick book lookups
+        const booksMap = {};
+        books.forEach(book => {
+            booksMap[book.bookId] = book;
+        });
+        
+        // Calculate statistics
+        const totalBooks = ratings.length;
+        
+        const booksRead = ratings.filter(rating => rating.readingStatus === 'finished').length;
+        const booksReading = ratings.filter(rating => rating.readingStatus === 'reading').length;
+        const booksToRead = ratings.filter(rating => rating.readingStatus === 'to-read').length;
+        
+        let totalPages = 0;
+        ratings.forEach(rating => {
+            const book = booksMap[rating.bookId];
+            if (book && book.pageCount) {
+                totalPages += book.pageCount;
+            }
+        });
+        
+        // Calculate average rating (excluding null/undefined ratings)
+        const ratedBooks = ratings.filter(rating => rating.rating !== null && rating.rating !== undefined);
+        const averageRating = ratedBooks.length > 0 
+            ? ratedBooks.reduce((sum, item) => sum + item.rating, 0) / ratedBooks.length 
+            : 0;
+        
+        // Count categories and authors
+        const categoryCount = {};
+        const authorCount = {};
+        
+        ratings.forEach(rating => {
+            const book = booksMap[rating.bookId];
+            if (book) {
+                // Count categories
+                if (book.categories) {
+                    book.categories.forEach(category => {
+                        categoryCount[category] = (categoryCount[category] || 0) + 1;
+                    });
+                }
+                
+                // Count authors
+                if (book.authors) {
+                    book.authors.forEach(author => {
+                        authorCount[author] = (authorCount[author] || 0) + 1;
+                    });
+                }
+            }
+        });
+        
+        // Get top categories and authors
+        const favoriteCategories = Object.entries(categoryCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([category, count]) => ({ category, count }));
+            
+        const favoriteAuthors = Object.entries(authorCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([author, count]) => ({ author, count }));
+        
+        res.json({
+            totalBooks,
+            booksRead,
+            booksReading,
+            booksToRead,
+            totalPages,
+            averageRating: averageRating.toFixed(1),
+            favoriteCategories,
+            favoriteAuthors
+        });
+    } catch (error) {
+        console.error('Помилка отримання статистики книг:', error);
+        res.status(500).json({ error: 'Не вдалося отримати статистику книг' });
+    }
+});
+
 // Start server
 (async () => {
     await connectToDatabase();

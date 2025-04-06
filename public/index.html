@@ -20,6 +20,7 @@
     
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles/book.css">
 
     <script src="scripts/init.js"></script>
 </head>
@@ -38,17 +39,18 @@
 
         <!-- Main content area -->
         <main class="app-content">
-            <!-- Ratings Tab -->
+            <!-- Updated Ratings Tab with Books Subtab -->
             <section class="tab-content" id="ratingsTab">
                 <div class="tab-header">
                     <h1>Рейтинги 🎬</h1>
                     <div class="subtabs">
-                        <button class="subtab-btn active" data-subtab="gallery">Галерея</button>
+                        <button class="subtab-btn active" data-subtab="gallery">Фільми</button>
+                        <button class="subtab-btn" data-subtab="books">Книги</button>
                         <button class="subtab-btn" data-subtab="search">Пошук</button>
                     </div>
                 </div>
                 
-                <!-- Gallery Subtab Section with Sort and Filter Controls -->
+                <!-- Films Gallery Subtab -->
                 <div class="subtab-content active" id="galleryContent">
                     <div class="gallery-controls">
                         <div class="sort-controls">
@@ -107,12 +109,140 @@
                         <!-- Media cards will be populated here -->
                         <div class="loading-spinner">
                             <span class="material-icons rotating">refresh</span>
-                            <p>Завантаження...</p>
+                            <p>Завантаження фільмів...</p>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Search Subtab -->
+                <!-- Books Subtab -->
+                <div class="subtab-content" id="booksContent">
+                    <div class="books-header">
+                        <div class="books-tabs">
+                            <button class="books-tab-btn active" data-booktab="collection">Колекція</button>
+                            <button class="books-tab-btn" data-booktab="search">Пошук</button>
+                            <button class="books-tab-btn" data-booktab="stats">Статистика</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Books Collection Section -->
+                    <div class="books-section active" id="bookCollectionSection">
+                        <div class="gallery-controls">
+                            <div class="sort-controls">
+                                <div class="sort-control-group">
+                                    <label for="bookSortField">Сортувати за:</label>
+                                    <select id="bookSortField" class="sort-select">
+                                        <option value="timestamp">Дата додавання</option>
+                                        <option value="title">Назва</option>
+                                        <option value="authors">Автор</option>
+                                        <option value="publishedDate">Рік видання</option>
+                                        <option value="userRating">Оцінка</option>
+                                    </select>
+                                </div>
+                                <div class="sort-control-group">
+                                    <label for="bookSortOrder">Порядок:</label>
+                                    <select id="bookSortOrder" class="sort-select">
+                                        <option value="desc">За спаданням</option>
+                                        <option value="asc">За зростанням</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-controls">
+                                <div class="filter-header">
+                                    <h3>Фільтри <span id="bookFilterBadge" class="filter-badge">Активні</span></h3>
+                                    <button id="clearBookFiltersBtn" class="clear-filters-btn">
+                                        <span class="material-icons">close</span> Очистити
+                                    </button>
+                                </div>
+                                
+                                <div class="filter-options">
+                                    <div class="filter-option">
+                                        <select id="bookTypeFilter" class="filter-select">
+                                            <option value="">Усі типи 📚</option>
+                                            <!-- Options will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="filter-option">
+                                        <select id="bookYearFilter" class="filter-select">
+                                            <option value="">Усі роки 📅</option>
+                                            <!-- Options will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="filter-option">
+                                        <select id="bookRatingFilter" class="filter-select">
+                                            <option value="">Усі оцінки ⭐</option>
+                                            <!-- Options will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="filter-options" style="margin-top: 8px;">
+                                    <div class="filter-option">
+                                        <select id="bookAuthorFilter" class="filter-select">
+                                            <option value="">Усі автори ✍️</option>
+                                            <!-- Options will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="filter-option">
+                                        <select id="bookCategoryFilter" class="filter-select">
+                                            <option value="">Усі категорії 🔖</option>
+                                            <!-- Options will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="filter-option">
+                                        <select id="bookStatusFilter" class="filter-select">
+                                            <option value="">Будь-який статус 📖</option>
+                                            <option value="reading">📖 Читаю зараз</option>
+                                            <option value="to-read">📚 Планую прочитати</option>
+                                            <option value="finished">✓ Прочитано</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="books-grid" id="booksGrid">
+                            <!-- Book cards will be populated here -->
+                            <div class="loading-spinner">
+                                <span class="material-icons rotating">refresh</span>
+                                <p>Завантаження книг...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Books Search Section -->
+                    <div class="books-section" id="bookSearchSection">
+                        <div class="search-container">
+                            <div class="search-input-container">
+                                <span class="material-icons search-icon">search</span>
+                                <input type="text" id="bookSearchInput" placeholder="Пошук книг, манги...">
+                                <button id="bookSearchClearBtn" class="search-clear-btn">
+                                    <span class="material-icons">close</span>
+                                </button>
+                            </div>
+                            <div class="search-results" id="bookSearchResults">
+                                <!-- Search results will be populated here -->
+                                <p class="search-prompt">Введіть назву для пошуку книг 🔍</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Books Stats Section -->
+                    <div class="books-section" id="bookStatsSection">
+                        <div id="bookStats" class="book-stats-container">
+                            <div class="loading-spinner">
+                                <span class="material-icons rotating">refresh</span>
+                                <p>Завантаження статистики...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Search Subtab (for movies) -->
                 <div class="subtab-content" id="searchContent">
                     <div class="search-container">
                         <div class="search-input-container">
@@ -182,7 +312,6 @@
                     </div>
                 </div>
             </section>
-
 
             <!-- Weather Tab -->
             <section class="tab-content hidden" id="weatherTab">
@@ -290,6 +419,7 @@
     <script src="scripts/config.js"></script>
     <script src="scripts/app.js"></script>
     <script src="scripts/ratings.js"></script>
+    <script src="scripts/books.js"></script>
     <script src="scripts/tracker.js"></script>
     <script src="scripts/weather.js"></script>
     <script src="scripts/currency.js"></script>

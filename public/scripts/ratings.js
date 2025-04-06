@@ -423,7 +423,6 @@ function getUserRatingForMedia(imdbId) {
     return ratedItem ? ratedItem.userRating : null;
 }
 
-// Render media items
 function renderMediaItems(items, container) {
     container.innerHTML = ''; // Clear container first
     
@@ -435,15 +434,17 @@ function renderMediaItems(items, container) {
         // Background color for placeholder
         const bgColor = getRandomColor(item.id);
         
+        // Use the image utility for poster image
+        const posterImage = item.poster_path ? 
+            IMAGE_UTILS.createImageElement(item.poster_path, item.title) : 
+            `<span class="material-icons" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; color: rgba(255,255,255,0.7);">
+                ${getMediaTypeIcon(item.media_type)}
+            </span>`;
+        
         mediaCard.innerHTML = `
             <div class="media-poster" style="background-color: ${bgColor}">
                 <span class="media-type-badge">${getMediaTypeEmoji(item.media_type)} ${getMediaTypeShortLabel(item.media_type)}</span>
-                ${item.poster_path ? 
-                    `<img src="${item.poster_path}" alt="${item.title}" onerror="this.style.display='none'; this.parentNode.innerHTML+='<span class=\\'material-icons\\' style=\\'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; color: rgba(255,255,255,0.7);\\'>local_movies</span>';">` : 
-                    `<span class="material-icons" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; color: rgba(255,255,255,0.7);">
-                        ${getMediaTypeIcon(item.media_type)}
-                    </span>`
-                }
+                ${posterImage}
             </div>
             <div class="media-info">
                 <div class="media-title">${item.title}</div>
