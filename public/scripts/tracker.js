@@ -1,6 +1,5 @@
 // Трекер товарів - Розширена версія з підтримкою Steam, Rozetka та Comfy
 let trackedItems = [];
-console.log(currentUserId);
 
 function debugAPI(message) {
     console.log(`🔍 [Трекер Налагодження] ${message}`);
@@ -24,16 +23,6 @@ function initializeTracker() {
     debugAPI("Ініціалізація трекера почалась");
     
     // Отримати ID користувача з Telegram WebApp, якщо доступний
-    try {
-        if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
-            currentUserId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-            debugAPI(`ID користувача отримано з Telegram: ${currentUserId}`);
-        } else {
-            debugAPI(`Використовуємо ID користувача за замовчуванням: ${currentUserId}`);
-        }
-    } catch (e) {
-        debugAPI(`Помилка отримання ID користувача: ${e.message}`);
-    }
     
     // Налаштовуємо трекер і фільтри після короткої затримки для завершення рендерингу DOM
     setTimeout(() => {

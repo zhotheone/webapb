@@ -4,7 +4,6 @@ let currentPage = 1;
 const itemsPerPage = 12;
 let isLoading = false;
 let hasMoreItems = true;
-let currentUserId = null;
 
 // Sorting and filtering state
 let currentSort = {
@@ -28,10 +27,6 @@ let filterOptions = {
 
 // Initialize ratings module
 document.addEventListener('DOMContentLoaded', function() {
-    // Get user ID from Telegram WebApp if available
-    if (telegram.initDataUnsafe && telegram.initDataUnsafe.user) {
-        currentUserId = telegram.initDataUnsafe.user.id.toString();
-    }
     
     // Setup infinite scroll for media grid
     setupInfiniteScroll();
