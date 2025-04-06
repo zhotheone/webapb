@@ -244,94 +244,6 @@
     margin-right: 4px;
 }
 
-/* Book Statistics */
-.book-stats-container {
-    padding: var(--space-md);
-}
-
-.books-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: var(--space-md);
-    margin-bottom: var(--space-lg);
-}
-
-.stats-card {
-    background-color: var(--overlay);
-    border-radius: var(--border-radius);
-    padding: var(--space-md);
-    text-align: center;
-    box-shadow: var(--shadow-1);
-    transition: transform var(--anim-speed-normal);
-}
-
-.stats-card:hover {
-    transform: translateY(-3px);
-}
-
-.stats-icon {
-    margin-bottom: var(--space-sm);
-    color: var(--gold);
-}
-
-.stats-icon .material-icons {
-    font-size: 24px;
-}
-
-.stats-value {
-    font-size: var(--font-2xl);
-    font-weight: 500;
-    margin-bottom: var(--space-xs);
-}
-
-.stats-label {
-    color: var(--subtle);
-    font-size: var(--font-sm);
-}
-
-.books-stats-favorites {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-lg);
-    margin-top: var(--space-xl);
-}
-
-.stats-favorites-section h3 {
-    color: var(--foam);
-    margin-bottom: var(--space-md);
-    text-align: center;
-    font-size: var(--font-lg);
-}
-
-.favorites-list {
-    list-style: none;
-    padding: 0;
-}
-
-.favorites-list li {
-    display: flex;
-    justify-content: space-between;
-    padding: var(--space-xs) 0;
-    border-bottom: 1px solid var(--muted);
-}
-
-.favorite-name {
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-right: var(--space-sm);
-}
-
-.favorite-count {
-    background-color: var(--overlay);
-    color: var(--gold);
-    border-radius: var(--border-radius);
-    padding: 0 var(--space-sm);
-    min-width: 24px;
-    text-align: center;
-}
-
 /* Review Dialog */
 #bookReviewText {
     resize: vertical;
@@ -368,4 +280,297 @@
     .books-grid {
         grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     }
+}
+
+/* Book Search Bar Styles */
+
+/* Search container */
+.book-search-container {
+    margin-bottom: var(--space-lg);
+}
+
+/* Search input field */
+.book-search-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background-color: var(--overlay);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-1);
+    margin-bottom: var(--space-md);
+    transition: box-shadow var(--anim-speed-normal);
+    overflow: hidden;
+}
+
+.book-search-input-container:focus-within {
+    box-shadow: var(--shadow-2), 0 0 0 2px var(--pine);
+}
+
+.book-search-icon {
+    position: absolute;
+    left: var(--space-md);
+    color: var(--subtle);
+}
+
+#bookSearchInput {
+    flex: 1;
+    background-color: transparent;
+    border: none;
+    padding: var(--space-md) var(--space-md) var(--space-md) calc(var(--space-md) * 2 + 24px);
+    font-size: var(--font-md);
+    color: var(--text);
+    width: 100%;
+}
+
+#bookSearchInput::placeholder {
+    color: var(--subtle);
+}
+
+#bookSearchInput:focus {
+    outline: none;
+}
+
+.book-search-clear-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 0 var(--space-md);
+    cursor: pointer;
+    display: none;
+    transition: color var(--anim-speed-normal);
+}
+
+.book-search-clear-btn:hover {
+    color: var(--text);
+}
+
+.book-search-clear-btn.visible {
+    display: block;
+}
+
+/* Search prompt - shown when no search is performed */
+.book-search-prompt {
+    text-align: center;
+    color: var(--muted);
+    padding: var(--space-xl) 0;
+    font-size: var(--font-md);
+}
+
+/* Search results area */
+.book-search-results {
+    margin-top: var(--space-md);
+}
+
+/* Individual search result items */
+.book-search-result-item {
+    display: flex;
+    background-color: var(--overlay);
+    border-radius: var(--border-radius);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+    box-shadow: var(--shadow-1);
+    transition: transform var(--anim-speed-normal), box-shadow var(--anim-speed-normal);
+}
+
+.book-search-result-item:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-2);
+}
+
+.book-search-cover {
+    width: 80px;
+    height: 120px;
+    background-color: var(--muted);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.book-search-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.book-search-info {
+    margin-left: var(--space-md);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.book-search-title {
+    font-size: var(--font-lg);
+    font-weight: 500;
+    margin-bottom: var(--space-xs);
+    color: var(--foam);
+}
+
+.book-search-details {
+    font-size: var(--font-sm);
+    color: var(--subtle);
+    margin-bottom: var(--space-sm);
+}
+
+.book-search-add {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--pine);
+    color: var(--text);
+    border-radius: var(--border-radius);
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-sm);
+    cursor: pointer;
+    margin-top: auto;
+    align-self: flex-start;
+    transition: background-color var(--anim-speed-normal);
+}
+
+.book-search-add:hover {
+    background-color: var(--foam);
+}
+
+.book-search-add .material-icons {
+    font-size: 16px;
+    margin-right: var(--space-xs);
+}
+
+.book-search-user-rating {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--gold);
+    color: var(--base);
+    border-radius: var(--border-radius);
+    padding: var(--space-xs) var(--space-sm);
+    margin-top: auto;
+    align-self: flex-start;
+    font-weight: 500;
+}
+
+.book-search-user-rating .material-icons {
+    font-size: 16px;
+    margin-right: var(--space-xs);
+}
+
+/* Book status badge in search results */
+.book-status-badge {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--surface);
+    color: var(--iris);
+    border-radius: var(--border-radius);
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-xs);
+    margin-bottom: var(--space-sm);
+    align-self: flex-start;
+}
+
+.book-status-badge .material-icons {
+    font-size: 14px;
+    margin-right: 4px;
+}
+
+/* Loading and error states for search */
+.book-search-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-xl) 0;
+    color: var(--muted);
+}
+
+.book-search-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-xl) 0;
+    color: var(--love);
+    text-align: center;
+}
+
+.book-search-error .material-icons {
+    font-size: 48px;
+    margin-bottom: var(--space-md);
+}
+
+.book-search-error button {
+    margin-top: var(--space-md);
+    background-color: var(--pine);
+    color: var(--text);
+    border: none;
+    border-radius: var(--border-radius);
+    padding: var(--space-sm) var(--space-md);
+    cursor: pointer;
+    transition: background-color var(--anim-speed-normal);
+}
+
+.book-search-error button:hover {
+    background-color: var(--foam);
+}
+
+/* No results state */
+.no-results-message {
+    text-align: center;
+    padding: var(--space-xl) 0;
+    color: var(--muted);
+    font-size: var(--font-md);
+}
+
+/* Search result item hover effect */
+.book-search-result-item {
+    cursor: pointer;
+}
+
+.book-search-result-item:active {
+    transform: translateY(-1px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+    .book-search-cover {
+        width: 60px;
+        height: 90px;
+    }
+    
+    .book-search-title {
+        font-size: var(--font-md);
+    }
+    
+    .book-search-info {
+        margin-left: var(--space-sm);
+    }
+}
+
+/* Search filters section */
+.book-search-filters {
+    background-color: var(--overlay);
+    border-radius: var(--border-radius);
+    padding: var(--space-sm);
+    margin-bottom: var(--space-md);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
+.book-search-filter-label {
+    color: var(--subtle);
+    font-size: var(--font-sm);
+    margin-right: var(--space-xs);
+}
+
+.book-search-filter-select {
+    background-color: var(--surface);
+    color: var(--text);
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 4px var(--space-sm);
+    font-size: var(--font-sm);
+}
+
+.book-search-filter-group {
+    display: flex;
+    align-items: center;
 }

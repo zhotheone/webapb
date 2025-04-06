@@ -1272,6 +1272,153 @@ app.get('/api/image-proxy', async (req, res) => {
     }
 });
 
+// Add this to your server.js file
+
+// Media Statistics Endpoint 
+app.get('/api/rate/stats/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        
+        // Get all ratings for this user
+        const ratings = await db.collection('ratings')
+            .find({ userId })
+            .toArray();
+            
+        if (ratings.length === 0) {
+            return res.json({
+                totalMedia: 0,
+                totalMovies: 0,
+                totalSeries: 0,
+                totalGames: 0,
+                totalHours: 0,
+                averageRating: "0.0",
+                ratingDistribution: {},
+                yearDistribution: {},
+                favoriteGenres: [],
+                favoriteDirectors: []
+            });
+        }
+        
+        // Get imdbIds from all ratings
+        const imdbIds = ratings.map(rating => rating.imdbId);
+        
+        // Get information about all rated media
+        const mediaItems = await db.collection('media')
+            .find({ imdbId: { $in: imdbIds } })
+            .toArray();
+            
+        // Create a map for quick media lookups
+        const mediaMap = {};
+        mediaItems.forEach(item => {
+            mediaMap[item.imdbId] = item;
+        });
+        
+        // Calculate statistics
+        const totalMedia = ratings.length;
+        
+        // Count by media type
+        let totalMovies = 0;
+        let totalSeries = 0;
+        let totalGames = 0;
+        
+        // Rating distribution (counts by rating value)
+        const ratingDistribution = {};
+        
+        // Year distribution (counts by release year)
+        const yearDistribution = {};
+        
+        // Count genres and directors
+        const genreCount = {};
+        const directorCount = {};
+        
+        // Calculate estimated watch hours (rough approximation)
+        let totalHours = 0;
+        
+        // Process each rating
+        ratings.forEach(rating => {
+            const media = mediaMap[rating.imdbId];
+            if (media) {
+                // Count by type
+                const mediaType = media.type ? media.type.toLowerCase() : 'unknown';
+                if (mediaType === 'movie') {
+                    totalMovies++;
+                    // Approximate movie length (2 hours)
+                    totalHours += 2;
+                } else if (mediaType === 'series' || mediaType === 'tvshow' || mediaType === 'tv') {
+                    totalSeries++;
+                    // Approximate series length (10 episodes x 1 hour)
+                    totalHours += 10;
+                } else if (mediaType === 'game') {
+                    totalGames++;
+                    // Approximate game length (20 hours)
+                    totalHours += 20;
+                }
+                
+                // Process release year
+                if (media.year) {
+                    yearDistribution[media.year] = (yearDistribution[media.year] || 0) + 1;
+                }
+                
+                // Process genres
+                if (media.genre) {
+                    const genres = media.genre.split(', ');
+                    genres.forEach(genre => {
+                        genreCount[genre] = (genreCount[genre] || 0) + 1;
+                    });
+                }
+                
+                // Process director
+                if (media.director) {
+                    const directors = media.director.split(', ');
+                    directors.forEach(director => {
+                        if (director !== 'N/A') {
+                            directorCount[director] = (directorCount[director] || 0) + 1;
+                        }
+                    });
+                }
+            }
+            
+            // Count ratings
+            if (rating.rating) {
+                ratingDistribution[rating.rating] = (ratingDistribution[rating.rating] || 0) + 1;
+            }
+        });
+        
+        // Calculate average rating (excluding null/undefined ratings)
+        const ratedItems = ratings.filter(rating => rating.rating !== null && rating.rating !== undefined);
+        const averageRating = ratedItems.length > 0 
+            ? (ratedItems.reduce((sum, item) => sum + item.rating, 0) / ratedItems.length).toFixed(1)
+            : "0.0";
+        
+        // Get top genres and directors
+        const favoriteGenres = Object.entries(genreCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([genre, count]) => ({ genre, count }));
+            
+        const favoriteDirectors = Object.entries(directorCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([director, count]) => ({ director, count }));
+        
+        res.json({
+            totalMedia,
+            totalMovies,
+            totalSeries,
+            totalGames,
+            totalHours,
+            averageRating,
+            ratingDistribution,
+            yearDistribution,
+            favoriteGenres,
+            favoriteDirectors
+        });
+    } catch (error) {
+        console.error('Помилка отримання статистики медіа:', error);
+        res.status(500).json({ error: 'Не вдалося отримати статистику медіа' });
+    }
+});
+
 // Book API Endpoints
 // To be added to server.js
 

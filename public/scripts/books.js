@@ -45,7 +45,7 @@ let bookFilterOptions = {
 // Initialize books module
 document.addEventListener('DOMContentLoaded', function() {
     // Setup books functionality when DOM is ready
-    setupBooksSearch();
+    setupEnhancedBookSearch();
     setupBooksSort();
     setupBooksFilter();
     
@@ -73,6 +73,24 @@ function loadBooksData() {
 }
 
 // Load user's books collection from API
+// Load books when the tab is opened
+function loadBooksData() {
+    console.log('📚 Завантаження книг для користувача:', getCurrentUserId());
+    
+    // Clear existing data
+    booksData = [];
+    
+    // Load user's book collection
+    loadBooksCollection();
+    
+    // Load filter options
+    loadBooksFilterOptions();
+    
+    // Load book statistics for dashboard
+    loadBookStatistics();
+}
+
+// Load user's books collection from API
 async function loadBooksCollection() {
     if (isLoadingBooks) return;
     
@@ -80,7 +98,10 @@ async function loadBooksCollection() {
     
     // Show loading indicator
     const booksGrid = document.getElementById('booksGrid');
-    if (!booksGrid) return;
+    if (!booksGrid) {
+        console.error('📚 Помилка: елемент #booksGrid не знайдено');
+        return;
+    }
     
     booksGrid.innerHTML = `
         <div class="loading-spinner">
@@ -358,43 +379,307 @@ function populateBooksFilterOptions() {
     if (bookFilter.readingStatus) statusFilter.value = bookFilter.readingStatus;
 }
 
-// Setup books search
-function setupBooksSearch() {
+// Setup enhanced book search
+function setupEnhancedBookSearch() {
+    console.log('📚 Setting up enhanced book search...');
+    
     const searchInput = document.getElementById('bookSearchInput');
     const searchClearBtn = document.getElementById('bookSearchClearBtn');
     const searchResults = document.getElementById('bookSearchResults');
+    const quickTypeFilter = document.getElementById('quickTypeFilter');
+    const searchSortOrder = document.getElementById('searchSortOrder');
     
-    if (!searchInput || !searchClearBtn || !searchResults) return;
+    if (!searchInput || !searchClearBtn || !searchResults) {
+        console.error('📚 Error: Required search elements not found');
+        return;
+    }
     
-    // Debounce search to avoid too many API calls
-    let searchTimeout = null;
+    // Quick type filter and sort order are optional
+    const hasQuickFilters = !!quickTypeFilter && !!searchSortOrder;
+    if (hasQuickFilters) {
+        console.log('📚 Quick filters found and will be used');
+    }
     
-    // Show/hide clear button based on input content
+    // Search state
+    let searchState = {
+        query: '',
+        type: '',
+        sort: 'relevance',
+        isSearching: false,
+        searchTimeout: null
+    };
+    
+    // Setup event listeners
+    
+    // Input handler with debounce
     searchInput.addEventListener('input', () => {
-        const hasText = searchInput.value.trim().length > 0;
-        searchClearBtn.classList.toggle('visible', hasText);
+        const query = searchInput.value.trim();
+        searchState.query = query;
+        
+        // Show/hide clear button
+        searchClearBtn.classList.toggle('visible', query.length > 0);
         
         // Clear previous timeout
-        if (searchTimeout) {
-            clearTimeout(searchTimeout);
+        if (searchState.searchTimeout) {
+            clearTimeout(searchState.searchTimeout);
         }
         
-        if (hasText) {
-            // Set new timeout for search
-            searchTimeout = setTimeout(() => {
-                performBooksSearch(searchInput.value.trim());
-            }, 500); // Wait 500ms after typing stops
+        if (query.length > 0) {
+            // Show loading indicator if search will be performed
+            if (query.length >= 2) {
+                searchResults.innerHTML = `
+                    <div class="book-search-loading">
+                        <span class="material-icons rotating">refresh</span>
+                        <p>Пошук книг...</p>
+                    </div>
+                `;
+            }
+            
+            // Set timeout for search
+            searchState.searchTimeout = setTimeout(() => {
+                if (query.length >= 2) {
+                    // Perform search only if query is 2+ characters
+                    performEnhancedBookSearch(query, searchState.type, searchState.sort);
+                } else {
+                    // Show prompt for short queries
+                    searchResults.innerHTML = `
+                        <p class="book-search-prompt">Введіть щонайменше 2 символи для пошуку 🔍</p>
+                    `;
+                }
+            }, 500); // 500ms debounce
         } else {
-            searchResults.innerHTML = '<p class="search-prompt">Введіть назву для пошуку книг 🔍</p>';
+            // Show default prompt for empty search
+            searchResults.innerHTML = `
+                <p class="book-search-prompt">Введіть назву книги, автора або ключові слова для пошуку 📚</p>
+            `;
         }
     });
     
-    // Clear button functionality
+    // Clear button handler
     searchClearBtn.addEventListener('click', () => {
         searchInput.value = '';
+        searchState.query = '';
         searchClearBtn.classList.remove('visible');
-        searchResults.innerHTML = '<p class="search-prompt">Введіть назву для пошуку книг 🔍</p>';
+        
+        // Reset search results to default prompt
+        searchResults.innerHTML = `
+            <p class="book-search-prompt">Введіть назву книги, автора або ключові слова для пошуку 📚</p>
+        `;
+        
+        // Focus the input field
+        searchInput.focus();
     });
+    
+    // Quick filter handlers (if available)
+    if (hasQuickFilters) {
+        // Type filter change
+        quickTypeFilter.addEventListener('change', () => {
+            searchState.type = quickTypeFilter.value;
+            console.log(`📚 Search type filter changed to: ${searchState.type}`);
+            
+            // Re-run search if query exists
+            if (searchState.query && searchState.query.length >= 2) {
+                performEnhancedBookSearch(searchState.query, searchState.type, searchState.sort);
+            }
+        });
+        
+        // Sort order change
+        searchSortOrder.addEventListener('change', () => {
+            searchState.sort = searchSortOrder.value;
+            console.log(`📚 Search sort order changed to: ${searchState.sort}`);
+            
+            // Re-run search if query exists
+            if (searchState.query && searchState.query.length >= 2) {
+                performEnhancedBookSearch(searchState.query, searchState.type, searchState.sort);
+            }
+        });
+    }
+    
+    console.log('📚 Enhanced book search setup complete');
+}
+
+// Perform book search with enhanced UI and filtering
+async function performEnhancedBookSearch(query, type = '', sort = 'relevance') {
+    console.log(`📚 Performing enhanced search: "${query}" (type: ${type || 'all'}, sort: ${sort})`);
+    
+    const searchResults = document.getElementById('bookSearchResults');
+    if (!searchResults) return;
+    
+    // Prepare API URL with query params
+    let apiUrl = `books/search/${encodeURIComponent(query)}`;
+    const queryParams = [];
+    
+    // Add type filter if specified
+    if (type) {
+        queryParams.push(`type=${encodeURIComponent(type)}`);
+    }
+    
+    // Add sort parameter
+    if (sort && sort !== 'relevance') {
+        queryParams.push(`sort=${encodeURIComponent(sort)}`);
+    }
+    
+    // Add query string to URL
+    if (queryParams.length > 0) {
+        apiUrl += '?' + queryParams.join('&');
+    }
+    
+    try {
+        // Fetch search results
+        console.log(`📚 Fetching search results from: ${apiUrl}`);
+        const startTime = Date.now();
+        const data = await API_CONFIG.fetchWithCORS(apiUrl);
+        console.log(`📚 Search results received in ${Date.now() - startTime}ms`, data);
+        
+        // Process and display results
+        if (data.results && data.results.length > 0) {
+            console.log(`📚 Found ${data.results.length} results`);
+            
+            // Clear previous results
+            searchResults.innerHTML = '';
+            
+            // Create container for results
+            const resultsContainer = document.createElement('div');
+            resultsContainer.className = 'book-search-results-container';
+            
+            // Add result count
+            const countText = data.total 
+                ? `Знайдено ${data.total} результатів` 
+                : `Знайдено ${data.results.length} результатів`;
+                
+            const resultsCount = document.createElement('div');
+            resultsCount.className = 'book-search-count';
+            resultsCount.style.marginBottom = 'var(--space-md)';
+            resultsCount.style.color = 'var(--subtle)';
+            resultsCount.textContent = countText;
+            
+            resultsContainer.appendChild(resultsCount);
+            
+            // Add each result item
+            data.results.forEach((item, index) => {
+                const resultItem = createBookSearchResultItem(item, index);
+                resultsContainer.appendChild(resultItem);
+            });
+            
+            // Add to search results
+            searchResults.appendChild(resultsContainer);
+        } else {
+            console.log('📚 No search results found');
+            searchResults.innerHTML = `
+                <div class="no-results-message">
+                    <span class="material-icons" style="font-size: 48px; margin-bottom: var(--space-md); opacity: 0.7;">search_off</span>
+                    <p>Нічого не знайдено за запитом "${query}" 😔</p>
+                    <p style="font-size: var(--font-sm); color: var(--subtle); margin-top: var(--space-sm);">
+                        Спробуйте змінити пошуковий запит або фільтри
+                    </p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('📚 Error performing search:', error);
+        searchResults.innerHTML = `
+            <div class="book-search-error">
+                <span class="material-icons">error_outline</span>
+                <p>Помилка при пошуку книг</p>
+                <p style="font-size: var(--font-sm); color: var(--subtle); margin-top: 5px;">
+                    ${error.message || 'Невідома помилка'}
+                </p>
+                <button id="retrySearchBtn">Спробувати знову</button>
+            </div>
+        `;
+        
+        // Add retry button functionality
+        const retryBtn = document.getElementById('retrySearchBtn');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+                performEnhancedBookSearch(query, type, sort);
+            });
+        }
+    }
+}
+
+// Create a single search result item with improved UI
+function createBookSearchResultItem(item, index) {
+    // Create container element
+    const resultItem = document.createElement('div');
+    resultItem.className = 'book-search-result-item';
+    
+    // Check if book is already in collection
+    const userRating = getUserRatingForBook(item.id);
+    const userStatus = getUserStatusForBook(item.id);
+    
+    // Format status badge
+    const statusDisplay = userStatus ? 
+        `<div class="book-status-badge">
+            <span class="material-icons">${readingStatusIcons[userStatus] || 'auto_stories'}</span>
+            ${readingStatusLabels[userStatus] || ''}
+        </div>` : '';
+    
+    // Format rating/add button
+    const ratingDisplay = userRating !== null ? 
+        `<div class="book-search-user-rating">
+            <span class="material-icons">star</span> ${userRating}/10
+        </div>` : 
+        `<div class="book-search-add">
+            <span class="material-icons">add</span> Додати до колекції
+        </div>`;
+    
+    // Create background color placeholder for cover
+    const bgColor = getRandomColor(item.id);
+    
+    // Format authors
+    const authors = Array.isArray(item.authors) ? item.authors.join(', ') : item.authors || 'Невідомий автор';
+    
+    // Format book type
+    const typeEmoji = item.type === 'manga' ? '🗯️ Манга' : '📕 Книга';
+    
+    // Use image utility if available, or fallback
+    let coverImage;
+    if (typeof IMAGE_UTILS !== 'undefined') {
+        coverImage = item.image ? 
+            IMAGE_UTILS.createImageElement(item.image, item.title) : 
+            `<span class="material-icons" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 36px; color: rgba(255,255,255,0.7);">menu_book</span>`;
+    } else {
+        // Fallback without image utility
+        coverImage = item.image ? 
+            `<img src="${item.image}" alt="${item.title}" onerror="this.style.display='none'; this.parentNode.innerHTML+='<span class=\\'material-icons\\' style=\\'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 36px; color: rgba(255,255,255,0.7);\\'>menu_book</span>';">` : 
+            `<span class="material-icons" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 36px; color: rgba(255,255,255,0.7);">menu_book</span>`;
+    }
+    
+    // Build HTML content
+    resultItem.innerHTML = `
+        <div class="book-search-cover" style="background-color: ${bgColor}">
+            ${coverImage}
+        </div>
+        <div class="book-search-info">
+            <div class="book-search-title">${item.title}</div>
+            <div class="book-search-details">
+                ${typeEmoji} • ${authors} • ${item.publishedDate || 'Невідома дата'}
+            </div>
+            ${statusDisplay}
+            ${ratingDisplay}
+        </div>
+    `;
+    
+    // Add click handler
+    resultItem.addEventListener('click', () => {
+        console.log(`📚 Search result clicked: ${item.id} - ${item.title}`);
+        showBookRatingDialog(item);
+    });
+    
+    // Add staggered fade-in animation
+    setTimeout(() => {
+        resultItem.style.opacity = '0';
+        resultItem.style.transform = 'translateY(20px)';
+        resultItem.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+        
+        setTimeout(() => {
+            resultItem.style.opacity = '1';
+            resultItem.style.transform = 'translateY(0)';
+        }, 10);
+    }, 50 * index);
+    
+    return resultItem;
 }
 
 // Setup books sort functionality
@@ -423,6 +708,8 @@ function setupBooksSort() {
         });
     }
 }
+
+
 
 // Setup books filter functionality
 function setupBooksFilter() {

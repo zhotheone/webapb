@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup subtab navigation
     setupSubtabNavigation();
 
+    setupFilmsTabNavigation();
+
     setupBooksTabNavigation();
     
     // Trigger active tab to load its content
@@ -134,6 +136,18 @@ function setupSubtabNavigation() {
             const subtabContent = document.getElementById(subtabId + 'Content');
             if (subtabContent) {
                 subtabContent.classList.add('active');
+                // Load content specific to this subtab
+                if (subtabId === 'books') {
+                    if (typeof loadBooksData === 'function') {
+                        console.log('Loading books data after subtab change');
+                        loadBooksData();
+                    }
+                } else if (subtabId === 'films') {
+                    if (typeof loadMediaRatings === 'function') {
+                        console.log('Loading media ratings after subtab change');
+                        loadMediaRatings();
+                    }
+                }
             }
         });
     });
@@ -164,12 +178,22 @@ function setupBooksTabNavigation() {
             switch(bookTabId) {
                 case 'collection':
                     sectionId = 'bookCollectionSection';
+                    // Load book collection when this tab is selected
+                    if (typeof loadBooksCollection === 'function') {
+                        console.log('Loading books collection after tab change');
+                        loadBooksCollection();
+                    }
                     break;
                 case 'search':
                     sectionId = 'bookSearchSection';
                     break;
                 case 'stats':
                     sectionId = 'bookStatsSection';
+                    // Load book stats when this tab is selected
+                    if (typeof loadBookStatistics === 'function') {
+                        console.log('Loading book statistics after tab change');
+                        loadBookStatistics();
+                    }
                     break;
                 default:
                     sectionId = 'bookCollectionSection';
@@ -183,6 +207,63 @@ function setupBooksTabNavigation() {
     });
 }
 
+function setupFilmsTabNavigation() {
+    const filmTabButtons = document.querySelectorAll('.films-tab-btn');
+    
+    filmTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Get parent container
+            const filmsContent = document.getElementById('ratingsTab');
+            if (!filmsContent) return;
+            
+            // Find all film tab buttons and sections
+            const siblingButtons = filmsContent.querySelectorAll('.films-tab-btn');
+            const filmSections = filmsContent.querySelectorAll('.films-section');
+            
+            // Remove active class from all buttons and sections
+            siblingButtons.forEach(btn => btn.classList.remove('active'));
+            filmSections.forEach(section => section.classList.remove('active'));
+            
+            // Add active class to clicked button and corresponding section
+            button.classList.add('active');
+            const filmTabId = button.getAttribute('data-filmtab');
+            
+            let sectionId;
+            switch(filmTabId) {
+                case 'collection':
+                    sectionId = 'filmGallerySection';
+                    break;
+                case 'search':
+                    sectionId = 'filmSearchSection';
+                    break;
+                case 'stats':
+                    sectionId = 'filmStatsSection';
+                    // Load media statistics when this tab is selected
+                    if (typeof loadMediaStatistics === 'function') {
+                        console.log('Loading media statistics after tab change');
+                        loadMediaStatistics();
+                    }
+                    break;
+                default:
+                    sectionId = 'filmGallerySection';
+            }
+            
+            const filmSection = document.getElementById(sectionId);
+            if (filmSection) {
+                filmSection.classList.add('active');
+                
+                // If switching to search tab, focus the search input
+                if (filmTabId === 'search') {
+                    const searchInput = filmSection.querySelector('input[type="text"]');
+                    if (searchInput) {
+                        setTimeout(() => searchInput.focus(), 100);
+                    }
+                }
+            }
+        });
+    });
+}
+
 // Виправлення в app.js - функція для завантаження вмісту вкладок
 
 // Виклик функцій завантаження вмісту при активації вкладки
@@ -191,8 +272,20 @@ function triggerTabContentLoad(tabId) {
     
     switch(tabId) {
         case 'ratingsTab':
-            if (typeof loadMediaRatings === 'function') {
-                console.log('Викликаємо loadMediaRatings()');
+            // Check which subtab is active
+            const activeSubtab = document.querySelector('.subtab-btn.active');
+            if (activeSubtab) {
+                const subtabId = activeSubtab.getAttribute('data-subtab');
+                if (subtabId === 'books' && typeof loadBooksData === 'function') {
+                    console.log('Викликаємо loadBooksData()');
+                    loadBooksData();
+                } else if (subtabId === 'films' && typeof loadMediaRatings === 'function') {
+                    console.log('Викликаємо loadMediaRatings()');
+                    loadMediaRatings();
+                }
+            } else if (typeof loadMediaRatings === 'function') {
+                // Default to loading media ratings if no subtab is active
+                console.log('Викликаємо loadMediaRatings() (за замовчуванням)');
                 loadMediaRatings();
             }
             break;

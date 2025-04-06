@@ -738,6 +738,256 @@ function getMediaTypeShortLabel(type) {
     }
 }
 
+async function loadMediaStatistics() {
+    const statsContainer = document.getElementById('mediaStats');
+    if (!statsContainer) return;
+    
+    try {
+        // Show loading indicator
+        statsContainer.innerHTML = `
+            <div class="loading-spinner">
+                <span class="material-icons rotating">refresh</span>
+                <p>Завантаження статистики...</p>
+            </div>
+        `;
+        
+        // Get media statistics from API
+        const apiUrl = `rate/stats/${getCurrentUserId()}`;
+        const stats = await API_CONFIG.fetchWithCORS(apiUrl);
+        
+        // Render statistics
+        renderMediaStatistics(stats, statsContainer);
+    } catch (error) {
+        console.error('❌ Помилка завантаження статистики медіа:', error);
+        statsContainer.innerHTML = `
+            <div class="stats-error">
+                <span class="material-icons">error_outline</span>
+                <p>Не вдалося завантажити статистику медіа</p>
+                <button id="retryMediaStatsBtn" class="button">Спробувати знову</button>
+            </div>
+        `;
+        
+        // Add retry button functionality
+        const retryBtn = document.getElementById('retryMediaStatsBtn');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+                loadMediaStatistics();
+            });
+        }
+    }
+}
+
+function renderMediaStatistics(stats, container) {
+    // Create summary cards
+    const summaryHTML = `
+        <div class="media-stats-grid">
+            <div class="stats-card">
+                <div class="stats-icon"><span class="material-icons">movie</span></div>
+                <div class="stats-value">${stats.totalMedia}</div>
+                <div class="stats-label">Всього медіа</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon"><span class="material-icons">movie</span></div>
+                <div class="stats-value">${stats.totalMovies}</div>
+                <div class="stats-label">Фільмів</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon"><span class="material-icons">tv</span></div>
+                <div class="stats-value">${stats.totalSeries}</div>
+                <div class="stats-label">Серіалів</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon"><span class="material-icons">videogame_asset</span></div>
+                <div class="stats-value">${stats.totalGames}</div>
+                <div class="stats-label">Ігор</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon"><span class="material-icons">timer</span></div>
+                <div class="stats-value">${stats.totalHours}</div>
+                <div class="stats-label">Годин переглянуто</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon"><span class="material-icons">star</span></div>
+                <div class="stats-value">${stats.averageRating}</div>
+                <div class="stats-label">Середня оцінка</div>
+            </div>
+        </div>
+    `;
+    
+    // Create rating distribution chart
+    const ratingDistributionHTML = `
+        <div class="stats-chart-container">
+            <h3 class="chart-title">Розподіл оцінок</h3>
+            <div class="rating-distribution">
+                ${renderRatingBars(stats.ratingDistribution)}
+            </div>
+        </div>
+    `;
+    
+    // Create year distribution chart
+    const yearDistributionHTML = `
+        <div class="stats-chart-container">
+            <h3 class="chart-title">Розподіл за роками</h3>
+            <div class="year-distribution">
+                ${renderYearBars(stats.yearDistribution)}
+            </div>
+        </div>
+    `;
+    
+    // Create type distribution chart
+    const typeDistributionHTML = `
+        <div class="stats-chart-container">
+            <h3 class="chart-title">Типи медіа</h3>
+            <div class="type-distribution">
+                <div class="type-item">
+                    <div class="type-icon">🎬</div>
+                    <div class="type-value">${stats.totalMovies}</div>
+                    <div class="type-label">Фільми</div>
+                </div>
+                <div class="type-item">
+                    <div class="type-icon">📺</div>
+                    <div class="type-value">${stats.totalSeries}</div>
+                    <div class="type-label">Серіали</div>
+                </div>
+                <div class="type-item">
+                    <div class="type-icon">🎮</div>
+                    <div class="type-value">${stats.totalGames}</div>
+                    <div class="type-label">Ігри</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Create favorites sections
+    const favoritesHTML = `
+        <div class="media-stats-favorites">
+            <div class="stats-favorites-section">
+                <h3>Улюблені жанри</h3>
+                <ul class="favorites-list">
+                    ${stats.favoriteGenres.map(item => `
+                        <li><span class="favorite-name">${item.genre}</span> <span class="favorite-count">${item.count}</span></li>
+                    `).join('')}
+                </ul>
+            </div>
+            <div class="stats-favorites-section">
+                <h3>Улюблені режисери</h3>
+                <ul class="favorites-list">
+                    ${stats.favoriteDirectors.map(item => `
+                        <li><span class="favorite-name">${item.director}</span> <span class="favorite-count">${item.count}</span></li>
+                    `).join('')}
+                </ul>
+            </div>
+        </div>
+    `;
+    
+    // Combine all sections
+    container.innerHTML = summaryHTML + typeDistributionHTML + ratingDistributionHTML + yearDistributionHTML + favoritesHTML;
+    
+    // Add animations
+    animateStatisticsElements();
+}
+
+// Render rating distribution bars
+function renderRatingBars(distribution) {
+    // Calculate max count for scaling
+    const maxCount = Math.max(...Object.values(distribution));
+    
+    // Create HTML for each rating bar
+    let barsHTML = '';
+    
+    // Iterate from 10 down to 1
+    for (let rating = 10; rating >= 1; rating--) {
+        const count = distribution[rating] || 0;
+        // Calculate height percentage based on max count (minimum 5% for visibility)
+        const heightPercent = maxCount > 0 ? Math.max(5, (count / maxCount) * 100) : 5;
+        
+        barsHTML += `
+            <div class="rating-bar" style="height: ${heightPercent}%;">
+                <span class="rating-value">${count}</span>
+                <span class="rating-label">${rating}</span>
+            </div>
+        `;
+    }
+    
+    return barsHTML;
+}
+
+// Render year distribution bars
+function renderYearBars(distribution) {
+    // Get years and sort them
+    const years = Object.keys(distribution).sort();
+    
+    // Calculate max count for scaling
+    const maxCount = Math.max(...Object.values(distribution));
+    
+    // Create HTML for each year bar
+    let barsHTML = '';
+    
+    years.forEach(year => {
+        const count = distribution[year] || 0;
+        // Calculate height percentage based on max count (minimum 5% for visibility)
+        const heightPercent = maxCount > 0 ? Math.max(5, (count / maxCount) * 100) : 5;
+        
+        barsHTML += `
+            <div class="year-bar" style="height: ${heightPercent}%;">
+                <span class="year-value">${count}</span>
+                <span class="year-label">${year}</span>
+            </div>
+        `;
+    });
+    
+    return barsHTML;
+}
+
+// Animate statistics elements
+function animateStatisticsElements() {
+    // Animate stats cards
+    const statsCards = document.querySelectorAll('.stats-card');
+    statsCards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 100 + (index * 50));
+    });
+    
+    // Animate rating bars
+    const ratingBars = document.querySelectorAll('.rating-bar');
+    ratingBars.forEach((bar, index) => {
+        const originalHeight = bar.style.height;
+        bar.style.height = '0%';
+        
+        setTimeout(() => {
+            bar.style.height = originalHeight;
+        }, 500 + (index * 30));
+    });
+    
+    // Animate year bars
+    const yearBars = document.querySelectorAll('.year-bar');
+    yearBars.forEach((bar, index) => {
+        const originalHeight = bar.style.height;
+        bar.style.height = '0%';
+        
+        setTimeout(() => {
+            bar.style.height = originalHeight;
+        }, 800 + (index * 20));
+    });
+    
+    // Animate type items
+    const typeItems = document.querySelectorAll('.type-item');
+    typeItems.forEach((item, index) => {
+        item.style.opacity = '0';
+        item.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            item.style.opacity = '1';
+            item.style.transform = 'translateY(0)';
+        }, 300 + (index * 100));
+    });
+}
+
 function getMediaTypeEmoji(type) {
     switch(type?.toLowerCase()) {
         case 'movie':

@@ -20,6 +20,7 @@
     
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles/bookstats.css">
     <link rel="stylesheet" href="styles/book.css">
 
     <script src="scripts/init.js"></script>
@@ -39,77 +40,114 @@
 
         <!-- Main content area -->
         <main class="app-content">
-            <!-- Updated Ratings Tab with Books Subtab -->
+            <!-- Updated Ratings Tab with Films Subtab -->
             <section class="tab-content" id="ratingsTab">
                 <div class="tab-header">
                     <h1>Рейтинги 🎬</h1>
                     <div class="subtabs">
-                        <button class="subtab-btn active" data-subtab="gallery">Фільми</button>
+                        <button class="subtab-btn active" data-subtab="films">Фільми</button>
                         <button class="subtab-btn" data-subtab="books">Книги</button>
-                        <button class="subtab-btn" data-subtab="search">Пошук</button>
                     </div>
                 </div>
                 
-                <!-- Films Gallery Subtab -->
-                <div class="subtab-content active" id="galleryContent">
-                    <div class="gallery-controls">
-                        <div class="sort-controls">
-                            <div class="sort-control-group">
-                                <label for="sortField">Сортувати за:</label>
-                                <select id="sortField" class="sort-select">
-                                    <option value="timestamp">Дата додавання</option>
-                                    <option value="title">Назва</option>
-                                    <option value="release_date">Рік випуску</option>
-                                    <option value="userRating">Оцінка</option>
-                                </select>
+                <!-- Films Subtab Content -->
+                <div class="subtab-content active" id="filmsContent">
+                    <div class="films-header">
+                        <div class="films-tabs">
+                            <button class="films-tab-btn active" data-filmtab="gallery">Колекція</button>
+                            <button class="films-tab-btn" data-filmtab="search">Пошук</button>
+                            <button class="films-tab-btn" data-filmtab="stats">Статистика</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Films Gallery Section -->
+                    <div class="films-section active" id="filmGallerySection">
+                        <div class="gallery-controls">
+                            <div class="sort-controls">
+                                <div class="sort-control-group">
+                                    <label for="sortField">Сортувати за:</label>
+                                    <select id="sortField" class="sort-select">
+                                        <option value="timestamp">Дата додавання</option>
+                                        <option value="title">Назва</option>
+                                        <option value="release_date">Рік випуску</option>
+                                        <option value="userRating">Оцінка</option>
+                                    </select>
+                                </div>
+                                <div class="sort-control-group">
+                                    <label for="sortOrder">Порядок:</label>
+                                    <select id="sortOrder" class="sort-select">
+                                        <option value="desc">За спаданням</option>
+                                        <option value="asc">За зростанням</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="sort-control-group">
-                                <label for="sortOrder">Порядок:</label>
-                                <select id="sortOrder" class="sort-select">
-                                    <option value="desc">За спаданням</option>
-                                    <option value="asc">За зростанням</option>
-                                </select>
+                            
+                            <div class="filter-controls">
+                                <div class="filter-header">
+                                    <h3>Фільтри <span id="filterBadge" class="filter-badge">Активні</span></h3>
+                                    <button id="clearFiltersBtn" class="clear-filters-btn">
+                                        <span class="material-icons">close</span> Очистити
+                                    </button>
+                                </div>
+                                
+                                <div class="filter-options">
+                                    <div class="filter-option">
+                                        <select id="typeFilter" class="filter-select">
+                                            <option value="">Усі типи 🎭</option>
+                                            <!-- Options will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="filter-option">
+                                        <select id="yearFilter" class="filter-select">
+                                            <option value="">Усі роки 📅</option>
+                                            <!-- Options will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="filter-option">
+                                        <select id="ratingFilter" class="filter-select">
+                                            <option value="">Усі оцінки ⭐</option>
+                                            <!-- Options will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="filter-controls">
-                            <div class="filter-header">
-                                <h3>Фільтри <span id="filterBadge" class="filter-badge">Активні</span></h3>
-                                <button id="clearFiltersBtn" class="clear-filters-btn">
-                                    <span class="material-icons">close</span> Очистити
-                                </button>
-                            </div>
-                            
-                            <div class="filter-options">
-                                <div class="filter-option">
-                                    <select id="typeFilter" class="filter-select">
-                                        <option value="">Усі типи 🎭</option>
-                                        <!-- Options will be populated dynamically -->
-                                    </select>
-                                </div>
-                                
-                                <div class="filter-option">
-                                    <select id="yearFilter" class="filter-select">
-                                        <option value="">Усі роки 📅</option>
-                                        <!-- Options will be populated dynamically -->
-                                    </select>
-                                </div>
-                                
-                                <div class="filter-option">
-                                    <select id="ratingFilter" class="filter-select">
-                                        <option value="">Усі оцінки ⭐</option>
-                                        <!-- Options will be populated dynamically -->
-                                    </select>
-                                </div>
+                        <div class="media-grid" id="mediaGrid">
+                            <!-- Media cards will be populated here -->
+                            <div class="loading-spinner">
+                                <span class="material-icons rotating">refresh</span>
+                                <p>Завантаження фільмів...</p>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="media-grid" id="mediaGrid">
-                        <!-- Media cards will be populated here -->
+                    <!-- Films Search Section -->
+                    <div class="films-section" id="filmSearchSection">
+                        <div class="search-container">
+                            <div class="search-input-container">
+                                <span class="material-icons search-icon">search</span>
+                                <input type="text" id="searchInput" placeholder="Пошук фільмів, серіалів...">
+                                <button id="searchClearBtn" class="search-clear-btn">
+                                    <span class="material-icons">close</span>
+                                </button>
+                            </div>
+                            <div class="search-results" id="searchResults">
+                                <!-- Search results will be populated here -->
+                                <p class="search-prompt">Введіть назву для пошуку 🔍</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Films Stats Section -->
+                <div class="films-section" id="filmStatsSection">
+                    <div id="mediaStats" class="media-stats-container">
                         <div class="loading-spinner">
                             <span class="material-icons rotating">refresh</span>
-                            <p>Завантаження фільмів...</p>
+                            <p>Завантаження статистики...</p>
                         </div>
                     </div>
                 </div>
@@ -216,17 +254,41 @@
                     
                     <!-- Books Search Section -->
                     <div class="books-section" id="bookSearchSection">
-                        <div class="search-container">
-                            <div class="search-input-container">
-                                <span class="material-icons search-icon">search</span>
-                                <input type="text" id="bookSearchInput" placeholder="Пошук книг, манги...">
-                                <button id="bookSearchClearBtn" class="search-clear-btn">
-                                    <span class="material-icons">close</span>
-                                </button>
+                        <div class="book-search-container">
+                            <!-- Enhanced Search Input Field -->
+                            <div class="book-search-input-container">
+                              <span class="material-icons book-search-icon">search</span>
+                              <input type="text" id="bookSearchInput" placeholder="Пошук книг, манги, авторів...">
+                              <button id="bookSearchClearBtn" class="book-search-clear-btn">
+                                <span class="material-icons">close</span>
+                              </button>
                             </div>
-                            <div class="search-results" id="bookSearchResults">
-                                <!-- Search results will be populated here -->
-                                <p class="search-prompt">Введіть назву для пошуку книг 🔍</p>
+                            
+                            <!-- Optional Search Filters -->
+                            <div class="book-search-filters">
+                              <div class="book-search-filter-group">
+                                <span class="book-search-filter-label">Тип:</span>
+                                <select id="quickTypeFilter" class="book-search-filter-select">
+                                  <option value="">Усі</option>
+                                  <option value="book">📕 Книги</option>
+                                  <option value="manga">🗯️ Манга</option>
+                                </select>
+                              </div>
+                              
+                              <div class="book-search-filter-group">
+                                <span class="book-search-filter-label">Сортувати:</span>
+                                <select id="searchSortOrder" class="book-search-filter-select">
+                                  <option value="relevance">За релевантністю</option>
+                                  <option value="newest">Спочатку нові</option>
+                                  <option value="rating">За рейтингом</option>
+                                </select>
+                              </div>
+                            </div>
+                            
+                            <!-- Search Results Area -->
+                            <div class="book-search-results" id="bookSearchResults">
+                              <!-- Initial prompt - will be replaced by actual results when search is performed -->
+                              <p class="book-search-prompt">Введіть назву книги, автора або ключові слова для пошуку 📚</p>
                             </div>
                         </div>
                     </div>
@@ -238,23 +300,6 @@
                                 <span class="material-icons rotating">refresh</span>
                                 <p>Завантаження статистики...</p>
                             </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Search Subtab (for movies) -->
-                <div class="subtab-content" id="searchContent">
-                    <div class="search-container">
-                        <div class="search-input-container">
-                            <span class="material-icons search-icon">search</span>
-                            <input type="text" id="searchInput" placeholder="Пошук фільмів, серіалів...">
-                            <button id="searchClearBtn" class="search-clear-btn">
-                                <span class="material-icons">close</span>
-                            </button>
-                        </div>
-                        <div class="search-results" id="searchResults">
-                            <!-- Search results will be populated here -->
-                            <p class="search-prompt">Введіть назву для пошуку 🔍</p>
                         </div>
                     </div>
                 </div>
